@@ -1,0 +1,433 @@
+/* =============================================================
+ * wireframe-kit.css
+ *
+ * Hand-drawn wireframe styles for semantic HTML.
+ *
+ * IMPORTANT: Tailwind Preflight must be disabled. Add this before
+ * loading Tailwind:
+ *
+ *   <script>tailwind.config = { corePlugins: { preflight: false } }</script>
+ *
+ * We reset every element we style ourselves; Preflight was fighting
+ * us at equal specificity on bare element selectors (button, select,
+ * summary, etc.). Disabling it lets our CSS stay clean and unprefixed.
+ *
+ * Pair with wireframe-kit.js and Rough.js.
+ * ============================================================= */
+
+/* ---------- Minimal reset (the useful bits of preflight we keep) ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+img, video { max-width: 100%; }
+
+/* ---------- Base ---------- */
+html, body {
+  font-family: 'Gloria Hallelujah', cursive;
+  background: #fdfdfb;
+  color: #1f1f1f;
+}
+
+/* ---------- Form fields ---------- */
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 40px;
+  padding: 8px 12px;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  font: inherit;
+  color: inherit;
+  resize: none;
+}
+textarea {
+  height: 96px;
+}
+select,
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"],
+input[type="search"] {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 34px;
+  background-image: none;
+  text-indent: 0;
+}
+input[type="search"] {
+  padding-left: 20px;
+}
+input[type="number"] {
+  padding-right: 28px;
+}
+/* Strip browser default spinners, search cancel crosses, and date
+ * indicators — the kit draws its own. */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  display: none;
+}
+
+/* Input wrapper (injected at runtime). Must establish an isolated
+ * stacking context so our z-index: -1 SVG sits behind the input but
+ * not behind the document background. */
+.wf-input {
+  position: relative;
+  display: block;
+  isolation: isolate;
+}
+
+/* Select caret via :has() on the input's wrapper (added at runtime). */
+.wf-input:has(> select)::after {
+  content: '▾';
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  opacity: .6;
+  z-index: 2;
+}
+
+/* ---------- Button ---------- */
+button {
+  position: relative;
+  display: inline-block;
+  padding: 8px 20px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  isolation: isolate;
+}
+button[type="submit"],
+button.danger {
+  color: #fff;
+}
+
+/* ---------- Segmented control ---------- */
+.btnbar {
+  position: relative;
+  display: inline-flex;
+  isolation: isolate;
+}
+.btnbar > button {
+  padding: 8px 18px;
+  background: transparent;
+  border: 0;
+}
+.btnbar > button + button {
+  border-left: 1px solid #1f1f1f;
+}
+.btnbar > button[aria-pressed="true"] {
+  color: #fff;
+}
+
+/* ---------- Card (article) ---------- */
+article {
+  position: relative;
+  display: block;
+  padding: 24px;
+  isolation: isolate;
+}
+
+/* ---------- Alert (aside[role="alert"]) ---------- */
+aside[role="alert"] {
+  position: relative;
+  display: block;
+  padding: 14px 18px;
+  isolation: isolate;
+}
+aside[role="alert"] > strong:first-child {
+  display: block;
+  margin-bottom: 4px;
+}
+
+/* ---------- Toggle switch ---------- */
+input[type="checkbox"][role="switch"] {
+  position: relative;
+  display: inline-block;
+  width: 52px;
+  height: 28px;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+/* ---------- Checkbox / Radio ---------- */
+input[type="checkbox"]:not([role="switch"]),
+input[type="radio"] {
+  position: relative;
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+/* ---------- Calendar ---------- */
+.calendar {
+  position: relative;
+  padding: 16px;
+  isolation: isolate;
+}
+.calendar > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.calendar > header > strong {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+.calendar > header > button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+.calendar > ol {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.calendar > ol > li {
+  position: relative;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  cursor: pointer;
+  isolation: isolate;
+}
+.calendar > ol > li[aria-hidden="true"] {
+  opacity: 0.3;
+  cursor: default;
+}
+.calendar > ol > li.dow {
+  font-size: 0.75rem;
+  opacity: 0.6;
+  cursor: default;
+  aspect-ratio: auto;
+}
+.calendar > ol > li[aria-selected="true"] {
+  color: #fff;
+  font-weight: 700;
+}
+
+/* ---------- Dialog ---------- */
+dialog {
+  padding: 24px;
+  max-width: 440px;
+  width: 90%;
+  background: #fdfdfb;
+  color: #1f1f1f;
+  border: 0;
+  font-family: inherit;
+  isolation: isolate;
+}
+dialog::backdrop {
+  background: rgba(31, 31, 31, 0.3);
+}
+dialog > h3 {
+  font-weight: 700;
+  font-size: 1.25rem;
+  margin: 0 0 8px;
+}
+dialog > p { margin: 0 0 16px; }
+dialog > footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ---------- Table ---------- */
+table {
+  position: relative;
+  width: 100%;
+  border-collapse: collapse;
+  isolation: isolate;
+}
+th, td {
+  padding: 10px 14px;
+  text-align: left;
+}
+thead th {
+  font-weight: 700;
+  position: relative;
+}
+tbody tr + tr td {
+  border-top: 1px solid #9ca3af;
+}
+
+/* ---------- Tabs (nav > a) ----------
+ * The underline is drawn by JS as a sketchy line. */
+nav {
+  position: relative;
+  display: flex;
+  gap: 24px;
+  padding: 0 4px 10px;
+  isolation: isolate;
+}
+nav > a {
+  position: relative;
+  padding: 10px 4px;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+nav > a[aria-current="page"] { font-weight: 700; }
+
+/* ---------- Accordion ---------- */
+details { border-bottom: 1px solid #9ca3af; }
+details:last-child { border-bottom: 0; }
+details > summary {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 14px 4px;
+  cursor: pointer;
+  list-style: none;
+  font-weight: 700;
+}
+summary::-webkit-details-marker { display: none; }
+/* Chevron (drawn by JS into a child <svg.wf-chevron>) sits at the left
+ * of the summary. chevron-right = collapsed, chevron-down = expanded. */
+summary > svg.wf-chevron {
+  flex-shrink: 0;
+  display: block;
+  width: 22px;
+  height: 22px;
+  margin-right: 8px;
+}
+details > :not(summary) { padding: 0 4px 14px; }
+
+/* ---------- Tag ---------- */
+.tag {
+  position: relative;
+  display: inline-block;
+  padding: 2px 10px;
+  font-size: 0.85rem;
+  isolation: isolate;
+}
+
+/* ---------- List ----------
+ * <ul> for navigation-style lists, <ol> if sequence matters.
+ * The calendar's <ol> is scoped separately above. */
+ul, ol {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+ul > li, ol:not(.calendar > ol) > li {
+  padding: 10px 12px;
+  border-bottom: 1px solid #9ca3af;
+}
+ul > li:last-child, ol:not(.calendar > ol) > li:last-child {
+  border-bottom: 0;
+}
+
+/* ---------- Ruler (<hr>) ---------- */
+hr {
+  position: relative;
+  border: 0;
+  height: 12px;
+  margin: 16px 0;
+  background: transparent;
+}
+
+/* ---------- Image & Video placeholder ----------
+ * <img> with no src, <video> with no sources.
+ * `color: transparent` hides the browser's broken-image icon and
+ * any alt text that would otherwise render inside the element. */
+img:not([src]),
+img[src=""],
+video:not(:has(source)):not([src]) {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: transparent;
+  color: transparent;
+  isolation: isolate;
+}
+
+/* ---------- Chart placeholder ----------
+ * <figure class="chart bar|line|pie"></figure> */
+figure.chart {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 2 / 1;
+  margin: 0;
+  isolation: isolate;
+}
+figure.chart.pie {
+  aspect-ratio: 1 / 1;
+  max-width: 260px;
+}
+figure.chart > figcaption {
+  position: absolute;
+  bottom: 4px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 0.85rem;
+  opacity: 0.7;
+}
+
+/* ---------- Popover ----------
+ * Native <div popover>...</div> + <button popovertarget="id">.
+ * The kit positions it to the right of its trigger when opened,
+ * with a speech-bubble notch pointing left toward the trigger.
+ * Scrolls with the page (position: absolute in document flow). */
+[popover] {
+  position: absolute;
+  padding: 12px 14px 12px 22px;  /* extra left padding for the notch */
+  margin: 0;
+  background: transparent;
+  color: #1f1f1f;
+  border: 0;
+  font-family: inherit;
+  max-width: 280px;
+  isolation: isolate;
+  inset: auto;  /* override browser's default fixed top/left */
+}
+
+/* ---------- SVG overlays (injected by JS) ---------- */
+svg.wf-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+  z-index: -1;
+}
+svg.wf-overlay {
+  position: absolute;
+  display: block;
+  pointer-events: none;
+  z-index: 0;
+}

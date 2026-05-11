@@ -1,0 +1,62 @@
+#!/usr/bin/env sh
+# wireframe start        <session-dir>  — launch daemon; prints WIREFRAME_READY; exits 0
+# wireframe stop         <session-dir>  — graceful shutdown via POST /stop
+# wireframe export-human <session-dir>  — bundle proposal.html + kit → wireframe.html
+
+set -e
+
+SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+
+if command -v bun >/dev/null 2>&1; then
+  RUNTIME=bun
+  RUN_ARGS=""
+elif command -v node >/dev/null 2>&1; then
+  RUNTIME=node
+  RUN_ARGS="--experimental-strip-types"
+else
+  echo "ERROR: This skill needs bun (preferred) or node." >&2
+  echo "  Install bun:  curl -fsSL https://bun.sh/install | bash" >&2
+  echo "  Install Node: https://nodejs.org" >&2
+  exit 2
+fi
+
+CMD="${1:-}"
+SESSION_DIR="${2:-./.wireframe-session}"
+
+case "$CMD" in
+  start)
+    mkdir -p "$SESSION_DIR"
+    # Kit assets are served from the skill's assets/ dir at /wireframe-kit.{css,js}
+    # — no need to stage them in the session dir.
+    exec $RUNTIME $RUN_ARGS "$SKILL_DIR/server/serve.ts" start "$SESSION_DIR"
+    ;;
+
+  export-human)
+    # Optional third arg: output path (defaults to ./docs/human/wireframe.html)
+    exec $RUNTIME $RUN_ARGS "$SKILL_DIR/server/export-human.ts" "$SESSION_DIR" "${3:-}"
+    ;;
+
+  stop)
+    SERVER_JSON="$SESSION_DIR/server.json"
+    if [ ! -f "$SERVER_JSON" ]; then
+      echo "No server.json found at $SERVER_JSON" >&2
+      exit 1
+    fi
+    # Extract port and token with grep/sed (no runtime dependency)
+    PORT=$(grep -o '"port":[0-9]*' "$SERVER_JSON" | grep -o '[0-9]*')
+    TOKEN=$(grep -o '"token":"[^"]*"' "$SERVER_JSON" | sed 's/"token":"//;s/"//')
+    if [ -z "$PORT" ] || [ -z "$TOKEN" ]; then
+      echo "Could not parse server.json" >&2
+      exit 1
+    fi
+    curl -s -X POST -H "X-WF-Token: $TOKEN" "http://127.0.0.1:$PORT/stop" > /dev/null
+    echo "Stopped wireframe server on port $PORT"
+    ;;
+
+  *)
+    echo "Usage: wireframe start        [session-dir]" >&2
+    echo "       wireframe stop         [session-dir]" >&2
+    echo "       wireframe export-human [session-dir] [out-path]   # defaults to ./docs/human/wireframe.html" >&2
+    exit 1
+    ;;
+esac

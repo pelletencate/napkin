@@ -1,0 +1,256 @@
+/* Annotation overlay styles — injected into Shadow DOM, not the page */
+
+#toolbar {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff;
+  border: 1.5px solid #1f1f1f;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  box-shadow: 2px 3px 8px rgba(0,0,0,0.12);
+  user-select: none;
+}
+
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: background 0.25s;
+}
+.dot.green { background: #22c55e; }
+.dot.amber { background: #f59e0b; }
+
+.tb-btn {
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  padding: 3px 10px;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+.tb-btn:hover { background: #f3f4f6; }
+.tb-btn.active {
+  background: #1f1f1f;
+  color: #fff;
+  border-color: #1f1f1f;
+}
+.tb-btn.danger { border-color: #fca5a5; color: #dc2626; }
+.tb-btn.danger:hover { background: #fef2f2; }
+
+/* Highlight box — tracks selected element via fixed positioning */
+#highlight-box {
+  position: fixed;
+  pointer-events: none;
+  z-index: 2147483645;
+  box-sizing: border-box;
+  border: 2px solid #2563eb;
+  background: rgba(37, 99, 235, 0.07);
+  border-radius: 2px;
+  display: none;
+}
+#highlight-box.visible { display: block; }
+
+/* Annotation panel (popover near selected element) */
+#annotation-panel {
+  position: fixed;
+  z-index: 2147483647;
+  background: #fff;
+  border: 1.5px solid #1f1f1f;
+  border-radius: 8px;
+  padding: 12px;
+  width: 280px;
+  box-shadow: 2px 3px 12px rgba(0,0,0,0.15);
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  display: none;
+}
+#annotation-panel.visible { display: block; }
+
+#breadcrumb {
+  font-size: 11px;
+  color: #6b7280;
+  font-family: monospace;
+  margin-bottom: 8px;
+  word-break: break-all;
+  max-height: 38px;
+  overflow: hidden;
+  line-height: 1.4;
+}
+
+#comment-input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 80px;
+  padding: 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font: inherit;
+  resize: vertical;
+  outline: none;
+}
+#comment-input:focus { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,0.12); }
+
+#panel-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.pa-btn {
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  padding: 3px 8px;
+  flex-shrink: 0;
+  line-height: 1.4;
+}
+.pa-btn:hover:not(:disabled) { background: #f3f4f6; }
+.pa-btn:disabled { opacity: 0.35; cursor: default; }
+.pa-btn.primary {
+  background: #1f1f1f;
+  color: #fff;
+  border-color: #1f1f1f;
+  margin-left: auto;
+}
+.pa-btn.primary:disabled { background: #9ca3af; border-color: #9ca3af; }
+
+/* Pending pin dots — fixed overlays on annotated elements. Click to dismiss. */
+.pin-dot {
+  position: fixed;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #2563eb;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  line-height: 1;
+  color: #fff;
+  font-family: system-ui, sans-serif;
+  font-weight: 700;
+  pointer-events: auto;
+  cursor: pointer;
+  z-index: 2147483644;
+  transition: background 0.12s, transform 0.12s;
+}
+.pin-dot:hover {
+  background: #dc2626;
+  transform: scale(1.18);
+}
+.pin-dot:hover::after {
+  content: "×";
+}
+
+/* Orphan tray — chips for disconnected annotations */
+#orphan-tray {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 2147483647;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: system-ui, -apple-system, sans-serif;
+  max-width: 240px;
+}
+
+.orphan-chip {
+  background: #fef3c7;
+  border: 1.5px solid #f59e0b;
+  border-radius: 6px;
+  padding: 6px 8px 6px 10px;
+  font-size: 11px;
+  box-shadow: 1px 1px 4px rgba(0,0,0,0.1);
+  line-height: 1.4;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+.orphan-chip.selected {
+  background: #fde68a;
+  border-color: #d97706;
+  box-shadow: 0 0 0 2px #f59e0b;
+}
+.orphan-chip .chip-body {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+.orphan-chip .chip-comment {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+  display: block;
+}
+.orphan-chip small {
+  display: block;
+  color: #92400e;
+  font-size: 10px;
+  margin-top: 2px;
+}
+.orphan-chip .chip-dismiss {
+  background: transparent;
+  border: none;
+  color: #92400e;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 4px;
+  align-self: center;
+  border-radius: 3px;
+}
+.orphan-chip .chip-dismiss:hover {
+  color: #dc2626;
+  background: rgba(220, 38, 38, 0.08);
+}
+
+/* Ended overlay — full-page scrim shown after the Stop button is clicked. */
+#ended-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483646;
+  background: rgba(253, 253, 251, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+#ended-overlay .ended-card {
+  background: #fff;
+  border: 1.5px solid #1f1f1f;
+  border-radius: 8px;
+  padding: 24px 28px;
+  max-width: 360px;
+  text-align: center;
+  box-shadow: 2px 3px 12px rgba(0,0,0,0.15);
+}
+#ended-overlay strong {
+  display: block;
+  font-size: 15px;
+  margin-bottom: 6px;
+}
+#ended-overlay p {
+  margin: 0;
+  font-size: 13px;
+  color: #6b7280;
+}
