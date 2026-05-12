@@ -21,18 +21,6 @@ bun --version 2>/dev/null || node --version 2>/dev/null
 
 If neither exists: *"This skill needs `bun` (preferred) or `node`. Install bun with `curl -fsSL https://bun.sh/install | bash`, or install Node.js from https://nodejs.org."*
 
-**Playwright Chromium:**
-
-```bash
-bunx playwright --version 2>/dev/null || npx playwright --version 2>/dev/null
-# macOS
-ls ~/Library/Caches/ms-playwright/chromium-*/chrome-mac/Chromium.app 2>/dev/null
-# Linux
-ls ~/.cache/ms-playwright/chromium-*/chrome-linux/chrome 2>/dev/null
-```
-
-If the Chromium binary is missing: *"Playwright Chromium isn't installed. Run `bunx playwright install chromium` (or `npx …`) and re-run this skill."*
-
 ## Step 2 — Generate `proposal.html`
 
 Write the wireframe to `./.wireframe-session/proposal.html` using the skeleton and component vocabulary below. Do not deviate from the skeleton. Do not show raw HTML to the user — it is meant for the browser.
@@ -256,7 +244,7 @@ Whether to commit `docs/human/` to git is the user's call — do not touch `.git
 
 Generate the chosen artifact(s) **before stopping the daemon** (PNGs need the live server). Both go to `./docs/human/` (relative to the user's project root). If the user picked both, run them sequentially — order doesn't matter.
 
-- **PNGs:** call the sibling `screenshot` skill against the **live daemon URL** (`http://127.0.0.1:$PORT/?t=$TOKEN`), not `proposal.html` on disk. The daemon-rendered version has the kit injected; the disk version doesn't. Pass `-o ./docs/human/wireframe` so PNGs land as `./docs/human/wireframe.{sm,md,lg}.png`.
+- **PNGs:** use whichever HTML-to-image skill the user has available (e.g. a screenshot skill, a Playwright-based MCP tool, headless Chrome). Point it at the **live daemon URL** (`http://127.0.0.1:$PORT/?t=$TOKEN`), not `proposal.html` on disk — the daemon-rendered version has the kit injected; the disk version doesn't. Write output to `./docs/human/wireframe.{sm,md,lg}.png` (small/medium/large viewport widths if the tool supports it; otherwise a single `./docs/human/wireframe.png`). If no such skill is available, tell the user and skip the PNG artifact — the bundled HTML still covers the human-review need.
 - **Bundled HTML:** run the export tool. It inlines the kit CSS/JS into a copy of proposal.html and writes to `./docs/human/wireframe.html` by default (override with a third arg).
 
 ```bash
@@ -302,4 +290,4 @@ skills/wireframe/
 
 ## Related skills
 
-- `screenshot` — take a one-shot PNG of the finished wireframe at configurable viewport widths
+- Any HTML-to-image skill the user has installed can be used in Step 5 to produce PNG artifacts of the finished wireframe.
