@@ -4,6 +4,14 @@ A skill that turns any agent into a hand-drawn wireframing partner — generates
 
 The deliverable on disk is plain semantic HTML + Tailwind. The hand-drawn look and the annotation overlay are injected by a local daemon at serve time, so downstream agents that consume the file see clean structural markup, not wireframe decoration.
 
+## Why this is cool
+
+Apart from the fact that you can talk to your agent by clicking in the browser, the other thing that's cool is that this is just a .md file and a script. Yes, it requires your agent to poll it and wait for a response, but on Claude Code, this works beautifully.
+
+So, no agent-specific extensions, no hooks, no plugin API, no SDK, no "tool use" schema, no framework integration. The skill works with any planning mode that allows you to tell the agent that you want a wireframe. (The agent does need to write to .wireframe-session/ so make sure it can do that). The skill works on any agent that supports skills, can run a shell command and edit a file — which is, essentially, all of them.
+
+Now, I don't know if this is a virtue. You can probably build a much more robust version of this project when you do use all of those things, and maybe someday I will.
+
 ## How a session looks
 
 1. You ask your agent for a wireframe of some screen.
@@ -37,8 +45,12 @@ Once installed, invoke the skill from your agent: *"wireframe a settings screen 
 Direct CLI access (for debugging or scripting):
 
 ```bash
-bin/wireframe start ./.wireframe-session
-# → WIREFRAME_READY http://127.0.0.1:54321 token=…
+bin/wireframe serve ./.wireframe-session
+# → WIREFRAME_READY http://127.0.0.1:54321/?t=…
+
+bin/wireframe connect ./.wireframe-session
+# blocks for one annotation; prints the JSON on stdout;
+# exit 0 (annotation), 1 (session ended), 2 (server error)
 
 bin/wireframe export-human ./.wireframe-session [out.html]
 bin/wireframe stop ./.wireframe-session
@@ -57,8 +69,9 @@ http://127.0.0.1:PORT/?t=TOKEN     ← decorated, interactive
 WebSocket      HTTP long-poll
    │              │
    ▼              ▼
-browser ──annotation──▶ agent
-agent  ──/revised──▶ browser (idiomorph in place)
+browser ──annotation──▶ agent (via GET /wait)
+agent edits proposal.html, calls /wait again
+server pushes morph on WS ──▶ browser idiomorphs in place
 ```
 
 - **`server/serve.ts`** — daemon. Self-forks: launcher prints `WIREFRAME_READY`, child runs HTTP/WS. Works on Bun (native `Bun.serve`) and Node (raw RFC 6455 WebSocket, zero deps).
@@ -119,7 +132,7 @@ wireframe/
 │   ├── serve.ts          ← daemon (Bun + Node)
 │   └── export-human.ts   ← bundle proposal.html + kit
 └── bin/
-    └── wireframe         ← CLI: start / stop / export-human
+    └── wireframe         ← CLI: serve / connect / stop / export-human
 ```
 
 ## Caveats
