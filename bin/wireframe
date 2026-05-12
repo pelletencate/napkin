@@ -1,5 +1,6 @@
 #!/usr/bin/env sh
-# wireframe start        <session-dir>  — launch daemon; prints WIREFRAME_READY; exits 0
+# wireframe serve        <session-dir>  — launch daemon; prints WIREFRAME_READY; exits 0
+# wireframe connect      <session-dir>  — block for one annotation; print JSON; exit 0/1/2
 # wireframe stop         <session-dir>  — graceful shutdown via POST /stop
 # wireframe export-human <session-dir>  — bundle proposal.html + kit → wireframe.html
 
@@ -24,11 +25,15 @@ CMD="${1:-}"
 SESSION_DIR="${2:-./.wireframe-session}"
 
 case "$CMD" in
-  start)
+  serve)
     mkdir -p "$SESSION_DIR"
     # Kit assets are served from the skill's assets/ dir at /wireframe-kit.{css,js}
     # — no need to stage them in the session dir.
-    exec $RUNTIME $RUN_ARGS "$SKILL_DIR/server/serve.ts" start "$SESSION_DIR"
+    exec $RUNTIME $RUN_ARGS "$SKILL_DIR/server/serve.ts" serve "$SESSION_DIR"
+    ;;
+
+  connect)
+    exec $RUNTIME $RUN_ARGS "$SKILL_DIR/server/serve.ts" connect "$SESSION_DIR"
     ;;
 
   export-human)
@@ -54,7 +59,8 @@ case "$CMD" in
     ;;
 
   *)
-    echo "Usage: wireframe start        [session-dir]" >&2
+    echo "Usage: wireframe serve        [session-dir]" >&2
+    echo "       wireframe connect      [session-dir]" >&2
     echo "       wireframe stop         [session-dir]" >&2
     echo "       wireframe export-human [session-dir] [out-path]   # defaults to ./docs/human/wireframe.html" >&2
     exit 1

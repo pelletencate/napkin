@@ -10,8 +10,9 @@
  * The child (daemon) runs the HTTP/WS server and stays alive.
  */
 
-import { spawn, exec }                              from 'child_process';
-import { readFileSync, writeFileSync, mkdirSync }   from 'fs';
+import { spawn }                                                                  from 'child_process';
+import { readFileSync, writeFileSync, mkdirSync, statSync, openSync, writeSync }  from 'fs';
+import { createServer as netCreateServer }                                        from 'net';
 import { join, dirname }                            from 'path';
 import { fileURLToPath }                            from 'url';
 import { randomBytes, createHash }                  from 'crypto';
@@ -66,13 +67,14 @@ let pendingPoll: { resolve: (a: Annotation | null) => void; timer: ReturnType<ty
 let shutdownTimer: ReturnType<typeof setTimeout> | null = null;
 let sessionEnded = false;
 
+// Mtime of proposal.html the last time we broadcast it (or served it at GET /).
+// Used to skip redundant morph broadcasts when the agent's `connect` enters
+// /wait but hasn't edited the file since the last push.
+let lastBroadcastMtime = 0;
+
 // Node WS clients; Bun uses a separate set below
 const nodeWsClients = new Set<Socket>();
 const bunWsClients  = new Set<any>();
-
-// Promise that resolves once the first WS client connects
-let wsReadyResolve: (() => void) | null = null;
-const wsFirstConnect = new Promise<void>(r => { wsReadyResolve = r; });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WS broadcast helpers
@@ -91,7 +93,6 @@ function wsClientCount(): number {
 }
 
 function onWsOpen(sendFn: (t: string) => void): void {
-  if (wsReadyResolve) { wsReadyResolve(); wsReadyResolve = null; }
   resetShutdownTimer();
   sendFn(JSON.stringify({ type: 'hello' }));
 }
@@ -160,6 +161,25 @@ function endSession(): void {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Proposal push — reads proposal.html and broadcasts a morph to all WS
+// clients. Called on every /wait entry; mtime-deduped so repeat polls during
+// a single agent "round" don't re-broadcast unchanged content.
+// ─────────────────────────────────────────────────────────────────────────────
+function broadcastProposalIfChanged(): void {
+  try {
+    const p = join(SESSION_DIR, 'proposal.html');
+    const mtime = statSync(p).mtimeMs;
+    if (mtime === lastBroadcastMtime) return;
+    lastBroadcastMtime = mtime;
+    const html = injectOverlay(readFileSync(p, 'utf8'));
+    const bodyMatch = html.match(/<body[^>]*>[\s\S]*<\/body>/i);
+    broadcast({ type: 'morph', html: bodyMatch ? bodyMatch[0] : html });
+    if (annotationQueue.length === 0) broadcast({ type: 'agent-ready' });
+    else                              broadcast({ type: 'agent-working' });
+  } catch { /* file missing or unreadable — skip silently */ }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // HTML injection
 // ─────────────────────────────────────────────────────────────────────────────
 function injectOverlay(html: string): string {
@@ -220,7 +240,11 @@ async function route(
   if (method === 'GET' && path === '/') {
     if (!checkToken(t)) return { status: 401, headers: {}, body: 'Unauthorized' };
     try {
-      const html = injectOverlay(readFileSync(join(SESSION_DIR, 'proposal.html'), 'utf8'));
+      const p = join(SESSION_DIR, 'proposal.html');
+      // Record the mtime served so the first /wait push doesn't redundantly
+      // re-broadcast the same content the browser just loaded.
+      lastBroadcastMtime = statSync(p).mtimeMs;
+      const html = injectOverlay(readFileSync(p, 'utf8'));
       return { status: 200, headers: { 'Content-Type': mime('.html') }, body: html };
     } catch {
       return { status: 404, headers: {}, body: 'proposal.html not found in session dir' };
@@ -238,9 +262,13 @@ async function route(
   }
 
   // ── GET /wait — agent long-poll ────────────────────────────────────────────
+  // Two responsibilities: (1) push any edits the agent made to proposal.html
+  // since the last broadcast, then (2) block until an annotation arrives.
+  // The agent's `connect` CLI is the only caller; it loops on this endpoint.
   if (method === 'GET' && path === '/wait') {
     if (!checkToken(t)) return { status: 401, headers: {}, body: 'Unauthorized' };
     if (sessionEnded) return { status: 410, headers: { 'Content-Type': mime('.json') }, body: JSON.stringify({ ended: true }) };
+    broadcastProposalIfChanged();
     const raw = Number(url.searchParams.get('timeout'));
     const timeout = Number.isFinite(raw) && raw > 0 ? Math.min(raw, 310) : 300;
     const ann = await dequeue(timeout);
@@ -260,21 +288,6 @@ async function route(
     } catch {
       return { status: 400, headers: {}, body: 'Invalid JSON' };
     }
-  }
-
-  // ── POST /revised ──────────────────────────────────────────────────────────
-  if (method === 'POST' && path === '/revised') {
-    if (!checkToken(headers['x-wf-token'] ?? null)) return { status: 401, headers: {}, body: 'Unauthorized' };
-    try {
-      const html = injectOverlay(readFileSync(join(SESSION_DIR, 'proposal.html'), 'utf8'));
-      const bodyMatch = html.match(/<body[^>]*>[\s\S]*<\/body>/i);
-      broadcast({ type: 'morph', html: bodyMatch ? bodyMatch[0] : html });
-      if (annotationQueue.length === 0) broadcast({ type: 'agent-ready' });
-      else                              broadcast({ type: 'agent-working' });
-    } catch {
-      return { status: 500, headers: {}, body: 'Could not read proposal.html' };
-    }
-    return { status: 204, headers: {}, body: null };
   }
 
   // ── POST /stop ─────────────────────────────────────────────────────────────
@@ -361,7 +374,7 @@ function attachNodeWs(socket: Socket, req: IncomingMessage): void {
 // ─────────────────────────────────────────────────────────────────────────────
 // Node HTTP server
 // ─────────────────────────────────────────────────────────────────────────────
-async function startNodeServer(): Promise<number> {
+async function startNodeServer(port: number): Promise<number> {
   const server = httpCreateServer(async (req: IncomingMessage, res: ServerResponse) => {
     let body = '';
     for await (const chunk of req) body += chunk;
@@ -384,18 +397,22 @@ async function startNodeServer(): Promise<number> {
     attachNodeWs(socket, req);
   });
 
-  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  await new Promise<void>(resolve => server.listen(port, '127.0.0.1', resolve));
   return (server.address() as any).port as number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Bun server
 // ─────────────────────────────────────────────────────────────────────────────
-async function startBunServer(): Promise<number> {
+async function startBunServer(port: number): Promise<number> {
   const Bun = (globalThis as any).Bun;
   const server = Bun.serve({
     hostname: '127.0.0.1',
-    port: 0,
+    port,
+    // /wait long-polls for up to 310s. Bun's default idleTimeout (10s) would
+    // close those connections mid-poll, causing curl exit 52 ("Empty reply
+    // from server") on the agent side. 0 disables the timeout entirely.
+    idleTimeout: 0,
     async fetch(req: Request, srv: any) {
       const url = new URL(req.url);
 
@@ -427,106 +444,137 @@ async function startBunServer(): Promise<number> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Browser open
-//
-// Called from the LAUNCHER, not the detached daemon. On macOS, `open URL` from
-// a detached/unrefed subprocess loses the user's LaunchServices session
-// context and falls back to Safari regardless of the registered http handler.
-// The launcher is still attached to the agent's shell, so its `open` honors
-// the user's actual default browser.
-// ─────────────────────────────────────────────────────────────────────────────
-function openBrowser(url: string): void {
-  const cmd = process.platform === 'darwin' ? `open "${url}"`
-            : process.platform === 'win32'  ? `start "" "${url}"`
-            : `xdg-open "${url}" 2>/dev/null || true`;
-  exec(cmd, () => {/* best-effort */});
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Daemon startup
+//
+// The launcher has already chosen the port and token (and written them to
+// server.json) before forking us. We just bind, attach handlers, and serve.
 // ─────────────────────────────────────────────────────────────────────────────
 async function startDaemon(sessionDir: string): Promise<void> {
   SESSION_DIR   = sessionDir;
-  SESSION_TOKEN = randomBytes(16).toString('hex');
-  SERVER_PORT   = IS_BUN ? await startBunServer() : await startNodeServer();
+  SESSION_TOKEN = process.env.WF_TOKEN ?? '';
+  const port    = Number(process.env.WF_PORT) || 0;
+  if (!SESSION_TOKEN || !port) {
+    process.stderr.write('[wireframe] daemon: missing WF_TOKEN or WF_PORT in env\n');
+    process.exit(1);
+  }
 
-  mkdirSync(SESSION_DIR, { recursive: true });
-  // Minified — bin/wireframe parses this with grep, which assumes no whitespace
-  // between key and value.
-  writeFileSync(
-    join(SESSION_DIR, 'server.json'),
-    JSON.stringify({ port: SERVER_PORT, token: SESSION_TOKEN, pid: process.pid }),
-  );
+  SERVER_PORT = IS_BUN ? await startBunServer(port) : await startNodeServer(port);
 
   // Heartbeat every 15s
   const heartbeat = setInterval(() => broadcast({ type: 'ping' }), 15_000);
   heartbeat.unref();
-
-  // Tell the launcher we're listening so IT can open the browser. The daemon
-  // does NOT call openBrowser itself — see comment above openBrowser().
-  const browserUrl = `http://127.0.0.1:${SERVER_PORT}/?t=${SESSION_TOKEN}`;
-  process.stdout.write(`WIREFRAME_LISTEN ${browserUrl}\n`);
-
-  // Wait for first browser WS connection (up to 30s)
-  await Promise.race([
-    wsFirstConnect,
-    new Promise<void>(r => setTimeout(r, 30_000)),
-  ]);
-
-  // Signal ready — launcher is reading this line
-  process.stdout.write(`WIREFRAME_READY http://127.0.0.1:${SERVER_PORT} token=${SESSION_TOKEN}\n`);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Launcher mode — forks daemon, opens browser on LISTEN, relays READY, exits
+// Allocate a free TCP port by briefly binding port 0 on 127.0.0.1, reading
+// the kernel-assigned port, and closing. There's a microsecond window where
+// another process could grab it before the daemon re-binds, but on localhost
+// dev machines that's essentially never an issue.
 // ─────────────────────────────────────────────────────────────────────────────
-function runLauncher(sessionDir: string): void {
+function allocateFreePort(): Promise<number> {
+  return new Promise<number>((resolve, reject) => {
+    const srv = netCreateServer();
+    srv.once('error', reject);
+    srv.listen(0, '127.0.0.1', () => {
+      const addr = srv.address();
+      if (!addr || typeof addr === 'string') { srv.close(); reject(new Error('no address')); return; }
+      const port = addr.port;
+      srv.close(() => resolve(port));
+    });
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Launcher — the foreground process attached to the caller's terminal.
+//
+// 1. Allocates a port + token,
+// 2. Writes server.json (the source of truth for stop/connect),
+// 3. Prints the openable URL on stdout via writeSync(fd 1) — bypasses Bun's
+//    Writable buffering so the line is visible before we exit,
+// 4. Spawns a detached copy of ourselves with WF_DAEMON=1 to become the
+//    daemon (inherits port + token via env),
+// 5. Exits.
+// ─────────────────────────────────────────────────────────────────────────────
+async function runLauncher(sessionDir: string): Promise<void> {
+  mkdirSync(sessionDir, { recursive: true });
+
+  const port  = await allocateFreePort();
+  const token = randomBytes(16).toString('hex');
+
+  writeFileSync(
+    join(sessionDir, 'server.json'),
+    JSON.stringify({ port, token }),
+  );
+
+  writeSync(1, `WIREFRAME_READY http://127.0.0.1:${port}/?t=${token}\n`);
+
+  // Daemon stderr → daemon.err in session dir so crashes/diagnostics aren't
+  // lost. Truncates each new session.
+  const errFd = openSync(join(sessionDir, 'daemon.err'), 'w');
+
   const args = [...process.execArgv, ...process.argv.slice(1)];
-  const child = spawn(process.execPath, args, {
+  spawn(process.execPath, args, {
     detached: true,
-    stdio: ['ignore', 'pipe', 'inherit'],
-    env: { ...process.env, WF_DAEMON: '1' },
-  });
-  child.unref();
+    stdio: ['ignore', 'ignore', errFd],
+    env: { ...process.env, WF_DAEMON: '1', WF_PORT: String(port), WF_TOKEN: token },
+  }).unref();
 
-  // Give up after 60s
-  const giveUp = setTimeout(() => {
-    process.stderr.write('[wireframe] timed out waiting for server to start\n');
-    process.exit(1);
-  }, 60_000);
-  giveUp.unref();
+  process.exit(0);
+}
 
-  let buf = '';
-  let opened = false;
-  child.stdout!.on('data', (chunk: Buffer) => {
-    buf += chunk.toString();
-    let nl: number;
-    while ((nl = buf.indexOf('\n')) !== -1) {
-      const line = buf.slice(0, nl).trim();
-      buf = buf.slice(nl + 1);
+// ─────────────────────────────────────────────────────────────────────────────
+// Connect (client) — looped by the agent. One call = one annotation.
+//
+// Reads server.json from the session dir, long-polls /wait with a short
+// timeout, retries silently on 204, prints the annotation JSON on stdout
+// when one arrives. Exit codes:
+//
+//   0 — annotation on stdout
+//   1 — session ended cleanly (tab closed or /stop)
+//   2 — server unreachable or unexpected response (message on stderr)
+//
+// The /wait handler pushes the current proposal.html to the browser on entry,
+// so there is no separate "I'm done revising" step — calling connect is the
+// signal.
+// ─────────────────────────────────────────────────────────────────────────────
+async function runConnect(sessionDir: string): Promise<never> {
+  let info: { port: number; token: string };
+  try {
+    info = JSON.parse(readFileSync(join(sessionDir, 'server.json'), 'utf8'));
+  } catch (e: any) {
+    process.stderr.write(`wireframe: could not read ${sessionDir}/server.json (${e?.message ?? e})\n`);
+    process.exit(2);
+  }
+  const { port, token } = info;
 
-      if (!opened && line.startsWith('WIREFRAME_LISTEN ')) {
-        opened = true;
-        const url = line.slice('WIREFRAME_LISTEN '.length).trim();
-        if (url) openBrowser(url);
-        continue;
-      }
-
-      if (line.startsWith('WIREFRAME_READY')) {
-        clearTimeout(giveUp);
-        process.stdout.write(line + '\n');
-        child.stdout!.destroy();
-        process.exit(0);
-      }
+  // Short server-side timeout keeps us under any client fetch headers timeout
+  // (Node undici's default is 5 min on recent versions but was 30s on older
+  // ones; staying well under that is harmless). The agent never sees the
+  // retries — we only exit on a terminal status.
+  while (true) {
+    let res: Response;
+    try {
+      res = await fetch(`http://127.0.0.1:${port}/wait?timeout=25`, {
+        headers: { 'X-WF-Token': token },
+      });
+    } catch (e: any) {
+      process.stderr.write(`wireframe: server unreachable (${e?.message ?? e})\n`);
+      process.exit(2);
     }
-  });
 
-  child.on('exit', (code: number | null) => {
-    if (code !== null && code !== 0) {
-      process.stderr.write(`[wireframe] server exited with code ${code}\n`);
+    if (res.status === 200) {
+      process.stdout.write(await res.text());
+      process.stdout.write('\n');
+      process.exit(0);
+    }
+    if (res.status === 204) continue;
+    if (res.status === 410) {
+      process.stderr.write('wireframe: session ended\n');
       process.exit(1);
     }
-  });
+    process.stderr.write(`wireframe: unexpected HTTP ${res.status}\n`);
+    process.exit(2);
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -534,16 +582,24 @@ function runLauncher(sessionDir: string): void {
 // ─────────────────────────────────────────────────────────────────────────────
 const [cmd, sessionDir = './.wireframe-session'] = process.argv.slice(2);
 
-if (cmd !== 'start') {
-  process.stderr.write('Usage: serve.ts start <session-dir>\n');
-  process.exit(1);
-}
-
-if (process.env.WF_DAEMON === '1') {
-  startDaemon(sessionDir).catch(err => {
+if (cmd === 'serve') {
+  if (process.env.WF_DAEMON === '1') {
+    startDaemon(sessionDir).catch(err => {
+      process.stderr.write(`[wireframe] ${err}\n`);
+      process.exit(1);
+    });
+  } else {
+    runLauncher(sessionDir).catch(err => {
+      process.stderr.write(`[wireframe] ${err}\n`);
+      process.exit(1);
+    });
+  }
+} else if (cmd === 'connect') {
+  runConnect(sessionDir).catch(err => {
     process.stderr.write(`[wireframe] ${err}\n`);
-    process.exit(1);
+    process.exit(2);
   });
 } else {
-  runLauncher(sessionDir);
+  process.stderr.write('Usage: serve.ts (serve|connect) <session-dir>\n');
+  process.exit(1);
 }
