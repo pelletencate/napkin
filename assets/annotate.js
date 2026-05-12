@@ -1,5 +1,5 @@
-/* Wireframe annotation overlay — injected into proposal.html by the server.
- * Runs entirely inside a Shadow DOM to stay isolated from wireframe-kit styles.
+/* Napkin annotation overlay — injected into proposal.html by the server.
+ * Runs entirely inside a Shadow DOM to stay isolated from napkin-kit styles.
  * Includes a minimal in-place DOM morpher so revisions apply without reload. */
 (function () {
   'use strict';
@@ -84,18 +84,18 @@
   })();
 
   // ─────────────────────────────────────────────
-  // Config — injected by server as window.__WF_CONFIG
+  // Config — injected by server as window.__NK_CONFIG
   // ─────────────────────────────────────────────
-  const cfg = window.__WF_CONFIG || {};
+  const cfg = window.__NK_CONFIG || {};
   const TOKEN      = cfg.token || '';
   const PORT       = cfg.port  || location.port || 80;
   const HTTP       = `http://127.0.0.1:${PORT}`;
   const WS_URL     = `ws://127.0.0.1:${PORT}/ws?t=${TOKEN}`;
-  const HOST_ID    = 'wf-annotate-root';
-  const CATCHER_ID = 'wf-click-catcher';
+  const HOST_ID    = 'nk-annotate-root';
+  const CATCHER_ID = 'nk-click-catcher';
 
   function authHeaders() {
-    return { 'X-WF-Token': TOKEN, 'Content-Type': 'application/json' };
+    return { 'X-NK-Token': TOKEN, 'Content-Type': 'application/json' };
   }
 
   // ─────────────────────────────────────────────
@@ -149,7 +149,7 @@
     while (cur && cur !== document.body && cur !== document.documentElement) {
       if (cur.id) { parts.unshift(`#${CSS.escape(cur.id)}`); break; }
       let part = cur.tagName.toLowerCase();
-      const classes = [...cur.classList].filter(c => !c.startsWith('wf-'));
+      const classes = [...cur.classList].filter(c => !c.startsWith('nk-'));
       if (classes.length) part += '.' + classes.map(c => CSS.escape(c)).join('.');
       const parent = cur.parentElement;
       if (parent) {
@@ -417,7 +417,7 @@
       selector:    getCssSelector(el),
       xpath:       getXPath(el),
       tag:         el.tagName.toLowerCase(),
-      classes:     [...el.classList].filter(c => !c.startsWith('wf-')),
+      classes:     [...el.classList].filter(c => !c.startsWith('nk-')),
       attributes:  Object.fromEntries([...el.attributes].map(a => [a.name, a.value])),
       textSnippet: el.textContent.trim().slice(0, 80),
       rect:        getClientRect(el),
@@ -469,7 +469,7 @@
     const inner = (bodyHTML.match(/<body[^>]*>([\s\S]*)<\/body>/i) || [, bodyHTML])[1];
     const cleaned = inner
       .replace(/<script[^>]*annotate\.js[^>]*><\/script>\s*/gi, '')
-      .replace(/<script>\s*window\.__WF_CONFIG\s*=[^<]*<\/script>\s*/gi, '')
+      .replace(/<script>\s*window\.__NK_CONFIG\s*=[^<]*<\/script>\s*/gi, '')
       .replace(/<link[^>]*annotate\.css[^>]*>\s*/gi, '');
 
     // Detach overlay host and click catcher before morphing so the morpher
@@ -484,7 +484,7 @@
 
     if (host)    document.body.appendChild(host);
     if (catcher) document.body.appendChild(catcher);
-    if (window.wireframeKit?.render) window.wireframeKit.render();
+    if (window.napkinKit?.render) window.napkinKit.render();
 
     resolvePinsAfterMorph();
   }
@@ -561,10 +561,10 @@
 
     const stopBtn = el('button', { className: 'tb-btn danger', textContent: 'Stop' });
     stopBtn.onclick = () => {
-      if (!confirm('Finish this wireframe session?')) return;
+      if (!confirm('Finish this napkin session?')) return;
       sessionEnded = true;
       try { ws?.close(); } catch {}
-      fetch(`${HTTP}/stop`, { method: 'POST', headers: { 'X-WF-Token': TOKEN } })
+      fetch(`${HTTP}/stop`, { method: 'POST', headers: { 'X-NK-Token': TOKEN } })
         .finally(showEndedOverlay);
     };
 
@@ -619,7 +619,7 @@
     const overlay = el('div', { id: 'ended-overlay' });
     overlay.innerHTML =
       `<div class="ended-card">` +
-      `  <strong>Wireframe session ended.</strong>` +
+      `  <strong>Napkin session ended.</strong>` +
       `  <p>You can close this tab.</p>` +
       `</div>`;
     shadow.appendChild(overlay);

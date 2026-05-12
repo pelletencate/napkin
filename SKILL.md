@@ -1,9 +1,9 @@
 ---
-name: wireframe
-description: Use when the user asks for a wireframe, mockup, sketch, or rough UI layout for a product feature they want to design — before any production HTML/CSS is written. Generates a hand-drawn HTML mockup, opens it in a local browser, and enters a live annotation loop where the user clicks elements to leave comments. Outputs a HTML file that has semantic Tailwind layout classes that will provide clear guidance to build agents. Do NOT use for code review of an existing page, design audits, screenshot comparisons, or generic UI conversation. If the goal is underspecified ("design something", "a UI"), ask one targeted clarifying question before generating.
+name: napkin
+description: Use when the user asks for a napkin sketch, wireframe, mockup, or rough UI layout for a product feature they want to design — before any production HTML/CSS is written. Generates a hand-drawn HTML mockup, opens it in a local browser, and enters a live annotation loop where the user clicks elements to leave comments. Outputs a HTML file that has semantic Tailwind layout classes that will provide clear guidance to build agents. Do NOT use for code review of an existing page, design audits, screenshot comparisons, or generic UI conversation. If the goal is underspecified ("design something", "a UI"), ask one targeted clarifying question before generating.
 ---
 
-# Wireframe
+# Napkin
 
 Generates a semantic HTML mockup styled as a hand-drawn sketch, opens it in a local browser, and enters a live annotation loop — the user clicks any element to leave a comment, you read it and revise the mockup in-place.
 
@@ -23,11 +23,11 @@ If neither exists: *"This skill needs `bun` (preferred) or `node`. Install bun w
 
 ## Step 2 — Generate `proposal.html`
 
-Write the wireframe to `./.wireframe-session/proposal.html` using the skeleton and component vocabulary below. Do not deviate from the skeleton. Do not show raw HTML to the user — it is meant for the browser.
+Write the napkin to `./.napkin-session/proposal.html` using the skeleton and component vocabulary below. Do not deviate from the skeleton. Do not show raw HTML to the user — it is meant for the browser.
 
 ### File skeleton
 
-`proposal.html` is the **LLM-readable deliverable**. Keep its `<head>` minimal: only the Tailwind CDN. The daemon injects the wireframe kit (font, rough.js, `wireframe-kit.css/js`) and the annotation overlay at serve time, so the page renders fully decorated in the browser without those tags ever touching disk.
+`proposal.html` is the **LLM-readable deliverable**. Keep its `<head>` minimal: only the Tailwind CDN. The daemon injects the napkin kit (font, rough.js, `napkin-kit.css/js`) and the annotation overlay at serve time, so the page renders fully decorated in the browser without those tags ever touching disk.
 
 ```html
 <!DOCTYPE html>
@@ -39,7 +39,7 @@ Write the wireframe to `./.wireframe-session/proposal.html` using the skeleton a
 </head>
 <body class="p-8">
   <div class="max-w-4xl mx-auto">
-    <!-- Your wireframe here -->
+    <!-- Your napkin here -->
   </div>
 </body>
 </html>
@@ -123,28 +123,28 @@ Two or three strokes — not production icons.
 - Use semantic HTML for structure (`<section>`, `<header>`, `<label>`, `<nav>`)
 - Do **not** invent class names — the kit only recognizes: `danger`, `accent`, `warning`, `success`, `tag`, `btnbar`, `calendar`, `chart`, `bar`, `line`, `pie`, `dow`
 - Use `aria-*` attributes for state (`aria-selected`, `aria-current`, `aria-pressed`, `aria-hidden`)
-- For popovers in screenshots, call `window.wireframeKit.openPopover('id')` before capture to simulate the open state
+- For popovers in screenshots, call `window.napkinKit.openPopover('id')` before capture to simulate the open state
 
 ## Step 3 — Start the server
 
-The paths below (`./bin/wireframe`, `./.wireframe-session`, etc.) are written **relative to this skill's install directory**, per the [Agent Skills standard](https://agentskills.io/specification). Your harness tells you where the skill lives:
+The paths below (`./bin/napkin`, `./.napkin-session`, etc.) are written **relative to this skill's install directory**, per the [Agent Skills standard](https://agentskills.io/specification). Your harness tells you where the skill lives:
 
 - **Pi** wraps the SKILL.md with `<skill location="…">References are relative to …</skill>` — use that location.
 - **Claude Code** announces `Base directory for this skill: …` when the skill loads.
 - Other harnesses: check your platform's skill loading docs.
 
-Resolve `./bin/wireframe` to an absolute path before invoking — the bash CWD is the user's project, not the skill directory. Concretely:
+Resolve `./bin/napkin` to an absolute path before invoking — the bash CWD is the user's project, not the skill directory. Concretely:
 
 ```bash
 SKILL_DIR="<absolute path your harness reported for this skill>"
-SESSION_DIR="./.wireframe-session"   # relative to user's project, not the skill
-"$SKILL_DIR/bin/wireframe" start "$SESSION_DIR"
+SESSION_DIR="./.napkin-session"   # relative to user's project, not the skill
+"$SKILL_DIR/bin/napkin" start "$SESSION_DIR"
 ```
 
 The launcher prints one line on stdout then exits 0:
 
 ```
-WIREFRAME_READY http://127.0.0.1:PORT token=TOKEN
+NAPKIN_READY http://127.0.0.1:PORT token=TOKEN
 ```
 
 Parse `PORT` and `TOKEN` from that line. Store them — all subsequent API calls use them.
@@ -161,7 +161,7 @@ Each iteration of this loop is one round-trip: **wait → revise → signal done
 SESSION_OVER=0
 while true; do
   if ! RESPONSE=$(curl -s --connect-timeout 10 -m 310 -w $'\n%{http_code}' \
-        -H "X-WF-Token: $TOKEN" \
+        -H "X-NK-Token: $TOKEN" \
         "http://127.0.0.1:$PORT/wait?timeout=300"); then
     SESSION_OVER=1; break                # curl exit nonzero → server gone or unreachable
   fi
@@ -195,7 +195,7 @@ Edit `proposal.html` to apply the requested change.
 ### 4c — Signal done
 
 ```bash
-curl -s -X POST -H "X-WF-Token: $TOKEN" "http://127.0.0.1:$PORT/revised"
+curl -s -X POST -H "X-NK-Token: $TOKEN" "http://127.0.0.1:$PORT/revised"
 ```
 
 The server then morphs the live page in place. Loop back to **4a** for the next annotation.
@@ -225,15 +225,15 @@ Runs once, on the first session that populates `./docs/human/`. **Skip silently*
 
 If all three hold, ask the user *once*, in plain prose (do not loop or re-ask):
 
-> I'm about to create `docs/human/` for visual wireframe artifacts. These are intended for human review only — agents reading them tend to anchor implementation choices on wireframe-specific decoration rather than the cleaned `proposal.html` deliverable. Want me to add a one-line note to `AGENTS.md` telling agents to skip that directory? **One-time question — I won't ask again** (this prompt only fires when `docs/human/` is empty/missing).
+> I'm about to create `docs/human/` for visual napkin artifacts. These are intended for human review only — agents reading them tend to anchor implementation choices on napkin-specific decoration rather than the cleaned `proposal.html` deliverable. Want me to add a one-line note to `AGENTS.md` telling agents to skip that directory? **One-time question — I won't ask again** (this prompt only fires when `docs/human/` is empty/missing).
 
 On **yes**: append the following to `./AGENTS.md`, creating the file if it doesn't exist. Do not modify or reorder existing content.
 
 ```md
 
-## Wireframes
+## Napkins
 
-Do not read files in `docs/human/`. It holds wireframe artifacts (PNGs, kit-decorated HTML) intended for human review only — reading them anchors implementation choices on wireframe-specific decoration rather than the cleaned `proposal.html` deliverable.
+Do not read files in `docs/human/`. It holds napkin artifacts (PNGs, kit-decorated HTML) intended for human review only — reading them anchors implementation choices on napkin-specific decoration rather than the cleaned `proposal.html` deliverable.
 ```
 
 On **no**: proceed without changes. Do not re-prompt; the trigger condition naturally stops being true once any artifact lands in `docs/human/`.
@@ -244,13 +244,13 @@ Whether to commit `docs/human/` to git is the user's call — do not touch `.git
 
 Generate the chosen artifact(s) **before stopping the daemon** (PNGs need the live server). Both go to `./docs/human/` (relative to the user's project root). If the user picked both, run them sequentially — order doesn't matter.
 
-- **PNGs:** use whichever HTML-to-image skill the user has available (e.g. a screenshot skill, a Playwright-based MCP tool, headless Chrome). Point it at the **live daemon URL** (`http://127.0.0.1:$PORT/?t=$TOKEN`), not `proposal.html` on disk — the daemon-rendered version has the kit injected; the disk version doesn't. Write output to `./docs/human/wireframe.{sm,md,lg}.png` (small/medium/large viewport widths if the tool supports it; otherwise a single `./docs/human/wireframe.png`). If no such skill is available, tell the user and skip the PNG artifact — the bundled HTML still covers the human-review need.
-- **Bundled HTML:** run the export tool. It inlines the kit CSS/JS into a copy of proposal.html and writes to `./docs/human/wireframe.html` by default (override with a third arg).
+- **PNGs:** use whichever HTML-to-image skill the user has available (e.g. a screenshot skill, a Playwright-based MCP tool, headless Chrome). Point it at the **live daemon URL** (`http://127.0.0.1:$PORT/?t=$TOKEN`), not `proposal.html` on disk — the daemon-rendered version has the kit injected; the disk version doesn't. Write output to `./docs/human/napkin.{sm,md,lg}.png` (small/medium/large viewport widths if the tool supports it; otherwise a single `./docs/human/napkin.png`). If no such skill is available, tell the user and skip the PNG artifact — the bundled HTML still covers the human-review need.
+- **Bundled HTML:** run the export tool. It inlines the kit CSS/JS into a copy of proposal.html and writes to `./docs/human/napkin.html` by default (override with a third arg).
 
 ```bash
-"$SKILL_DIR/bin/wireframe" export-human "$SESSION_DIR"
+"$SKILL_DIR/bin/napkin" export-human "$SESSION_DIR"
 # or with a custom out path:
-# "$SKILL_DIR/bin/wireframe" export-human "$SESSION_DIR" "./somewhere-else.html"
+# "$SKILL_DIR/bin/napkin" export-human "$SESSION_DIR" "./somewhere-else.html"
 ```
 
 `docs/human/` is intended to be **invisible to downstream agents** — the kit-decorated HTML and PNGs are anchoring artifacts that the user (a human) reviews, not material the next LLM should read. The one-time AGENTS.md prompt above is how that boundary gets set; no per-agent configuration required.
@@ -258,36 +258,36 @@ Generate the chosen artifact(s) **before stopping the daemon** (PNGs need the li
 Then stop the server (uses the same `$SKILL_DIR` and `$SESSION_DIR` from Step 3):
 
 ```bash
-"$SKILL_DIR/bin/wireframe" stop "$SESSION_DIR"
+"$SKILL_DIR/bin/napkin" stop "$SESSION_DIR"
 ```
 
 The server also auto-shuts down 15 seconds after the user closes the browser tab.
 
 ## Verification before reporting complete
 
-- `proposal.html` written to `.wireframe-session/` using the Step 2 skeleton
-- Server started; `PORT` + `TOKEN` parsed from the `WIREFRAME_READY` line
-- Browser opened and wireframe rendered visually
+- `proposal.html` written to `.napkin-session/` using the Step 2 skeleton
+- Server started; `PORT` + `TOKEN` parsed from the `NAPKIN_READY` line
+- Browser opened and napkin rendered visually
 - Every user annotation handled — each revised, then `POST /revised` sent
 - Server stopped cleanly
 
 ## File layout
 
 ```
-skills/wireframe/
+skills/napkin/
 ├── SKILL.md              ← this file
 ├── assets/
-│   ├── wireframe-kit.css
-│   ├── wireframe-kit.js
+│   ├── napkin-kit.css
+│   ├── napkin-kit.js
 │   ├── annotate.css      ← served by daemon, injected into page
 │   └── annotate.js       ← served by daemon, injected into page
 ├── server/
 │   ├── serve.ts          ← daemon (Bun native; Node 22+ via --experimental-strip-types)
-│   └── export-human.ts   ← bundle proposal.html + kit → wireframe.html
+│   └── export-human.ts   ← bundle proposal.html + kit → napkin.html
 └── bin/
-    └── wireframe         ← CLI: start / stop / export-human
+    └── napkin            ← CLI: start / stop / export-human
 ```
 
 ## Related skills
 
-- Any HTML-to-image skill the user has installed can be used in Step 5 to produce PNG artifacts of the finished wireframe.
+- Any HTML-to-image skill the user has installed can be used in Step 5 to produce PNG artifacts of the finished napkin.

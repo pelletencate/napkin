@@ -1,21 +1,21 @@
-# Wireframe
+# Napkin
 
-A skill that turns any agent into a hand-drawn wireframing partner — generates a sketch in the browser, then enters a live annotation loop where you click elements to leave comments and the agent revises in place.
+A skill that turns any agent into a hand-drawn sketching partner — generates a napkin sketch in the browser, then enters a live annotation loop where you click elements to leave comments and the agent revises in place.
 
-The deliverable on disk is plain semantic HTML + Tailwind. The hand-drawn look and the annotation overlay are injected by a local daemon at serve time, so downstream agents that consume the file see clean structural markup, not wireframe decoration.
+The deliverable on disk is plain semantic HTML + Tailwind. The hand-drawn look and the annotation overlay are injected by a local daemon at serve time, so downstream agents that consume the file see clean structural markup, not napkin decoration.
 
 ## Why this is cool
 
 Apart from the fact that you can talk to your agent by clicking in the browser, the other thing that's cool is that this is just a .md file and a script. Yes, it requires your agent to poll it and wait for a response, but on Claude Code, this works beautifully.
 
-So, no agent-specific extensions, no hooks, no plugin API, no SDK, no "tool use" schema, no framework integration. The skill works with any planning mode that allows you to tell the agent that you want a wireframe. (The agent does need to write to .wireframe-session/ so make sure it can do that). The skill works on any agent that supports skills, can run a shell command and edit a file — which is, essentially, all of them.
+So, no agent-specific extensions, no hooks, no plugin API, no SDK, no "tool use" schema, no framework integration. The skill works with any planning mode that allows you to tell the agent that you want a napkin sketch. (The agent does need to write to .napkin-session/ so make sure it can do that). The skill works on any agent that supports skills, can run a shell command and edit a file — which is, essentially, all of them.
 
 Now, I don't know if this is a virtue. You can probably build a much more robust version of this project when you do use all of those things, and maybe someday I will.
 
 ## How a session looks
 
-1. You ask your agent for a wireframe of some screen.
-2. It writes `./.wireframe-session/proposal.html`, starts a local daemon, and a browser tab pops open with the sketch.
+1. You ask your agent for a napkin sketch of some screen.
+2. It writes `./.napkin-session/proposal.html`, starts a local daemon, and a browser tab pops open with the sketch.
 3. Click any element — input, card, button, table row — and a panel appears next to it. Type a comment, hit submit. A blue dot pins the spot.
 4. The agent reads your annotation, edits the HTML, and the page morphs in place. The dot stays attached to the element it was pinned to. You keep clicking and commenting.
 5. Close the tab (or hit Stop) when the design feels right. The agent optionally generates PNGs and a self-contained kit-decorated HTML for human review.
@@ -25,7 +25,7 @@ Now, I don't know if this is a virtue. You can probably build a much more robust
 Drop the directory into your agent's skills folder. For Claude Code:
 
 ```bash
-git clone https://github.com/<you>/wireframe ~/.claude/skills/wireframe
+git clone https://github.com/<you>/napkin ~/.claude/skills/napkin
 ```
 
 For other agents that use the standard skill format (frontmatter + `SKILL.md`), follow your agent's installation convention — the skill is self-contained.
@@ -40,20 +40,20 @@ No npm install, no `package.json` — the daemon uses only Node/Bun built-ins. R
 
 ## Usage
 
-Once installed, invoke the skill from your agent: *"wireframe a settings screen with two tabs and a danger zone"*, *"sketch a checkout flow"*, etc. The skill description tells the agent when to fire — for explicit wireframe / mockup / sketch requests, before any production code.
+Once installed, invoke the skill from your agent: *"napkin a settings screen with two tabs and a danger zone"*, *"sketch a checkout flow"*, etc. The skill description tells the agent when to fire — for explicit napkin / wireframe / mockup / sketch requests, before any production code.
 
 Direct CLI access (for debugging or scripting):
 
 ```bash
-bin/wireframe serve ./.wireframe-session
-# → WIREFRAME_READY http://127.0.0.1:54321/?t=…
+bin/napkin serve ./.napkin-session
+# → NAPKIN_READY http://127.0.0.1:54321/?t=…
 
-bin/wireframe connect ./.wireframe-session
+bin/napkin connect ./.napkin-session
 # blocks for one annotation; prints the JSON on stdout;
 # exit 0 (annotation), 1 (session ended), 2 (server error)
 
-bin/wireframe export-human ./.wireframe-session [out.html]
-bin/wireframe stop ./.wireframe-session
+bin/napkin export-human ./.napkin-session [out.html]
+bin/napkin stop ./.napkin-session
 ```
 
 ## How it works
@@ -74,8 +74,8 @@ agent edits proposal.html, calls /wait again
 server pushes morph on WS ──▶ browser idiomorphs in place
 ```
 
-- **`server/serve.ts`** — daemon. Self-forks: launcher prints `WIREFRAME_READY`, child runs HTTP/WS. Works on Bun (native `Bun.serve`) and Node (raw RFC 6455 WebSocket, zero deps).
-- **`assets/wireframe-kit.{js,css}`** — decorates semantic HTML with hand-drawn Rough.js overlays. Maps `<input type="search">` to a sketchy field with a magnifier icon, `<dialog open>` to a roughed modal, `figure.chart.bar` to a bar chart, etc.
+- **`server/serve.ts`** — daemon. Self-forks: launcher prints `NAPKIN_READY`, child runs HTTP/WS. Works on Bun (native `Bun.serve`) and Node (raw RFC 6455 WebSocket, zero deps).
+- **`assets/napkin-kit.{js,css}`** — decorates semantic HTML with hand-drawn Rough.js overlays. Maps `<input type="search">` to a sketchy field with a magnifier icon, `<dialog open>` to a roughed modal, `figure.chart.bar` to a bar chart, etc.
 - **`assets/annotate.{js,css}`** — annotation overlay. Lives in a Shadow DOM so kit styles can't leak in. Bundles a minimal in-place DOM morpher so revisions don't full-reload.
 - **`server/export-human.ts`** — bundles `proposal.html` + the kit into a single self-contained HTML file for human review (no annotation UI).
 
@@ -120,26 +120,26 @@ Anything Claude-Code-specific (the `AskUserQuestion` UI, slash commands) is gate
 ## File layout
 
 ```
-wireframe/
+napkin/
 ├── SKILL.md              ← agent-facing instructions
 ├── README.md             ← this file
 ├── assets/
-│   ├── wireframe-kit.css ← hand-drawn styles
-│   ├── wireframe-kit.js  ← Rough.js decoration
+│   ├── napkin-kit.css    ← hand-drawn styles
+│   ├── napkin-kit.js     ← Rough.js decoration
 │   ├── annotate.css      ← overlay UI (Shadow DOM)
 │   └── annotate.js       ← overlay UI + morph client
 ├── server/
 │   ├── serve.ts          ← daemon (Bun + Node)
 │   └── export-human.ts   ← bundle proposal.html + kit
 └── bin/
-    └── wireframe         ← CLI: serve / connect / stop / export-human
+    └── napkin            ← CLI: serve / connect / stop / export-human
 ```
 
 ## Caveats
 
 - The session daemon binds to `127.0.0.1` only and is gated by a per-session 16-byte random token. Do not expose to other hosts.
-- `proposal.html` is the LLM deliverable. The kit-decorated HTML and PNGs that land in `./docs/human/` are anchoring artifacts intended for humans — letting downstream agents read them tends to bake wireframe-specific decoration into production code. The skill offers to add a one-line note to `AGENTS.md` the first time it populates `docs/human/`.
-- Tailwind loads from the [Play CDN](https://tailwindcss.com/docs/installation/play-cdn) — fine for wireframes, not for production. Downstream code generation is expected to swap in a proper build.
+- `proposal.html` is the LLM deliverable. The kit-decorated HTML and PNGs that land in `./docs/human/` are anchoring artifacts intended for humans — letting downstream agents read them tends to bake napkin-specific decoration into production code. The skill offers to add a one-line note to `AGENTS.md` the first time it populates `docs/human/`.
+- Tailwind loads from the [Play CDN](https://tailwindcss.com/docs/installation/play-cdn) — fine for napkins, not for production. Downstream code generation is expected to swap in a proper build.
 
 ## License
 

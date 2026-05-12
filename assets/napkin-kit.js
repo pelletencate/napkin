@@ -1,14 +1,14 @@
 /* =============================================================
- * wireframe-kit.js
+ * napkin-kit.js
  *
  * Decorates semantic HTML with hand-drawn SVG overlays via Rough.js.
  *
  *   <script src="https://cdn.jsdelivr.net/npm/roughjs@4.6.6/bundled/rough.js"></script>
- *   <script src="wireframe-kit.js"></script>
+ *   <script src="napkin-kit.js"></script>
  *
  * Exposes:
- *   window.wireframeKit.render()   — redraw all decorations
- *   window.__wireframeReady        — true after first render
+ *   window.napkinKit.render()   — redraw all decorations
+ *   window.__napkinReady        — true after first render
  *
  * Architecture:
  *   - Four generic shape drawers: rect, pill, circle, line.
@@ -22,7 +22,7 @@
 
 (() => {
   if (typeof rough === 'undefined') {
-    console.error('[wireframe-kit] Rough.js is not loaded. Add its <script> before wireframe-kit.js.');
+    console.error('[napkin-kit] Rough.js is not loaded. Add its <script> before napkin-kit.js.');
     return;
   }
 
@@ -88,7 +88,7 @@
   function drawRect(el, spec) {
     const { width: w, height: h } = el.getBoundingClientRect();
     if (w < 2 || h < 2) return;
-    const svg = freshSvg(el, spec.svgClass || 'wf-bg', w, h);
+    const svg = freshSvg(el, spec.svgClass || 'nk-bg', w, h);
     const rc = rough.svg(svg);
     const inset = spec.inset ?? 2;
     svg.appendChild(rc.rectangle(
@@ -100,7 +100,7 @@
   function drawPill(el, spec) {
     const { width: w, height: h } = el.getBoundingClientRect();
     if (w < 2 || h < 2) return;
-    const svg = freshSvg(el, spec.svgClass || 'wf-bg', w, h);
+    const svg = freshSvg(el, spec.svgClass || 'nk-bg', w, h);
     const rc = rough.svg(svg);
     svg.appendChild(rc.path(pillPath(w, h), roughOpts(spec, el)));
   }
@@ -108,7 +108,7 @@
   function drawCircle(el, spec) {
     const { width: w, height: h } = el.getBoundingClientRect();
     if (w < 2 || h < 2) return;
-    const svg = freshSvg(el, spec.svgClass || 'wf-bg', w, h);
+    const svg = freshSvg(el, spec.svgClass || 'nk-bg', w, h);
     const rc = rough.svg(svg);
     const pad = spec.inset ?? 3;
     const d = Math.min(w, h) - pad * 2;
@@ -118,14 +118,14 @@
   function drawLine(el, spec) {
     const { width: w, height: h } = el.getBoundingClientRect();
     if (w < 2 || h < 2) return;
-    const svg = freshSvg(el, spec.svgClass || 'wf-bg', w, h);
+    const svg = freshSvg(el, spec.svgClass || 'nk-bg', w, h);
     const rc = rough.svg(svg);
     const y = h / 2;
     svg.appendChild(rc.line(4, y, w - 4, y, roughOpts(spec, el)));
   }
 
   /* ---------- Input wrapping ----------
-   * Inputs/selects/textareas get a <span class="wf-input"> wrapper at
+   * Inputs/selects/textareas get a <span class="nk-input"> wrapper at
    * render time so we have a place for the SVG background. The LLM
    * writes plain <input>; the wrapper is an implementation detail. */
   function wrapInputs(root) {
@@ -133,9 +133,9 @@
       'input:not([type="checkbox"]):not([type="radio"]), select, textarea'
     );
     inputs.forEach(el => {
-      if (el.parentElement?.classList.contains('wf-input')) return;
+      if (el.parentElement?.classList.contains('nk-input')) return;
       const wrap = document.createElement('span');
-      wrap.className = 'wf-input';
+      wrap.className = 'nk-input';
       el.parentNode.insertBefore(wrap, el);
       wrap.appendChild(el);
     });
@@ -226,13 +226,13 @@
 
   const SPECS = [
     // Form input backgrounds.
-    { selector: '.wf-input',
-      shape: drawRect, svgClass: 'wf-bg',
+    { selector: '.nk-input',
+      shape: drawRect, svgClass: 'nk-bg',
       stroke: INK, strokeWidth: 1.4, roughness: 1.6 },
 
     // Card.
     { selector: 'article',
-      shape: drawRect, svgClass: 'wf-bg',
+      shape: drawRect, svgClass: 'nk-bg',
       stroke: el => el.classList.contains('danger') ? DANGER
                   : el.classList.contains('accent') ? ACCENT
                   : INK,
@@ -240,7 +240,7 @@
 
     // Alert.
     { selector: 'aside[role="alert"]',
-      shape: drawRect, svgClass: 'wf-bg',
+      shape: drawRect, svgClass: 'nk-bg',
       stroke: el => {
         if (el.classList.contains('danger'))  return DANGER;
         if (el.classList.contains('warning')) return WARNING;
@@ -251,27 +251,27 @@
 
     // Table.
     { selector: 'table',
-      shape: drawRect, svgClass: 'wf-bg',
+      shape: drawRect, svgClass: 'nk-bg',
       stroke: INK, strokeWidth: 1.4, roughness: 1.6 },
 
     // Calendar.
     { selector: '.calendar',
-      shape: drawRect, svgClass: 'wf-bg',
+      shape: drawRect, svgClass: 'nk-bg',
       stroke: INK, strokeWidth: 1.6, roughness: 2, bowing: 2, inset: 3 },
 
     // Tag.
     { selector: '.tag',
-      shape: drawPill, svgClass: 'wf-bg',
+      shape: drawPill, svgClass: 'nk-bg',
       stroke: INK, fill: MUTED, strokeWidth: 1.2, roughness: 1.4 },
 
     // Dialog.
     { selector: 'dialog[open]',
-      shape: drawRect, svgClass: 'wf-bg',
+      shape: drawRect, svgClass: 'nk-bg',
       stroke: INK, fill: BG, strokeWidth: 1.8, roughness: 2, bowing: 2, inset: 3 },
 
     // Ruler (<hr>).
     { selector: 'hr',
-      shape: drawLine, svgClass: 'wf-bg',
+      shape: drawLine, svgClass: 'nk-bg',
       stroke: INK, strokeWidth: 1.3, roughness: 2, bowing: 3 },
   ];
 
@@ -287,7 +287,7 @@
     if (el.getAttribute('type') === 'submit') { stroke = ACCENT; fill = ACCENT; }
     else if (el.classList.contains('danger')) { stroke = DANGER; fill = DANGER; }
 
-    const spec = { svgClass: 'wf-bg', stroke, strokeWidth: 1.5, roughness: 1.8, bowing: 2 };
+    const spec = { svgClass: 'nk-bg', stroke, strokeWidth: 1.5, roughness: 1.8, bowing: 2 };
     if (fill) spec.fill = fill;
     drawRect(el, spec);
   }
@@ -295,7 +295,7 @@
   function drawButtonBar(el) {
     const { width: w, height: h } = el.getBoundingClientRect();
     if (w < 2 || h < 2) return;
-    const svg = freshSvg(el, 'wf-bg', w, h);
+    const svg = freshSvg(el, 'nk-bg', w, h);
     const rc = rough.svg(svg);
 
     svg.appendChild(rc.rectangle(2, 2, w - 4, h - 4, {
@@ -323,7 +323,7 @@
     let svg = input.__wfOverlay;
     if (!svg || !svg.isConnected) {
       svg = document.createElementNS(SVG_NS, 'svg');
-      svg.setAttribute('class', 'wf-overlay');
+      svg.setAttribute('class', 'nk-overlay');
       input.parentNode.insertBefore(svg, input.nextSibling);
       input.__wfOverlay = svg;
     }
@@ -394,12 +394,12 @@
     const today = el.getAttribute('aria-current') === 'date';
     const selected = el.getAttribute('aria-selected') === 'true';
     if (!today && !selected) {
-      const stale = el.querySelector(':scope > svg.wf-bg');
+      const stale = el.querySelector(':scope > svg.nk-bg');
       if (stale) stale.remove();
       return;
     }
     drawCircle(el, {
-      svgClass: 'wf-bg',
+      svgClass: 'nk-bg',
       stroke: selected ? INK : ACCENT,
       fill: selected ? INK : undefined,
       strokeWidth: selected ? 1.3 : 1.8,
@@ -412,10 +412,10 @@
    * chevron-down when the parent <details> is closed, chevron-up
    * when open — actively communicating state, not just rotating. */
   function drawAccordionChevron(summary) {
-    let svg = summary.querySelector(':scope > svg.wf-chevron');
+    let svg = summary.querySelector(':scope > svg.nk-chevron');
     if (!svg) {
       svg = document.createElementNS(SVG_NS, 'svg');
-      svg.setAttribute('class', 'wf-chevron');
+      svg.setAttribute('class', 'nk-chevron');
       svg.setAttribute('viewBox', '0 0 22 22');
       // Insert as FIRST child of summary so it appears on the left.
       summary.insertBefore(svg, summary.firstChild);
@@ -430,17 +430,17 @@
 
   function drawTab(el) {
     if (el.getAttribute('aria-current') !== 'page') {
-      const existing = el.querySelector(':scope > svg.wf-tab-underline');
+      const existing = el.querySelector(':scope > svg.nk-tab-underline');
       if (existing) existing.remove();
       return;
     }
     const { width: w } = el.getBoundingClientRect();
     if (w < 2) return;
 
-    let svg = el.querySelector(':scope > svg.wf-tab-underline');
+    let svg = el.querySelector(':scope > svg.nk-tab-underline');
     if (!svg) {
       svg = document.createElementNS(SVG_NS, 'svg');
-      svg.setAttribute('class', 'wf-tab-underline');
+      svg.setAttribute('class', 'nk-tab-underline');
       Object.assign(svg.style, {
         position: 'absolute', left: '0', right: '0', bottom: '-1px',
         height: '6px', width: '100%', display: 'block', pointerEvents: 'none',
@@ -463,10 +463,10 @@
   function drawNavUnderline(nav) {
     const { width: w } = nav.getBoundingClientRect();
     if (w < 2) return;
-    let svg = nav.querySelector(':scope > svg.wf-nav-line');
+    let svg = nav.querySelector(':scope > svg.nk-nav-line');
     if (!svg) {
       svg = document.createElementNS(SVG_NS, 'svg');
-      svg.setAttribute('class', 'wf-nav-line');
+      svg.setAttribute('class', 'nk-nav-line');
       Object.assign(svg.style, {
         position: 'absolute', left: '0', bottom: '0',
         width: '100%', height: '6px',
@@ -493,10 +493,10 @@
     const w = tableRect.width;
     if (w < 2) return;
 
-    let svg = table.querySelector(':scope > svg.wf-thead-divider');
+    let svg = table.querySelector(':scope > svg.nk-thead-divider');
     if (!svg) {
       svg = document.createElementNS(SVG_NS, 'svg');
-      svg.setAttribute('class', 'wf-thead-divider');
+      svg.setAttribute('class', 'nk-thead-divider');
       Object.assign(svg.style, {
         position: 'absolute', left: '0',
         width: '100%', height: '6px',
@@ -519,10 +519,10 @@
   /* ---------- Input icons: search, date, time, number steppers ---------- */
 
   function drawInputIcon(wrap, kind) {
-    // wrap is the .wf-input span; icon drawn at the right edge.
+    // wrap is the .nk-input span; icon drawn at the right edge.
     const { width: w, height: h } = wrap.getBoundingClientRect();
     if (w < 2 || h < 2) return;
-    const svg = freshSvg(wrap, 'wf-bg', w, h);
+    const svg = freshSvg(wrap, 'nk-bg', w, h);
     const rc = rough.svg(svg);
 
     // Redraw the background — pill for search, rect for others.
@@ -565,7 +565,7 @@
     let svg = el.__wfMediaSvg;
     if (!svg || !svg.isConnected) {
       svg = document.createElementNS(SVG_NS, 'svg');
-      svg.setAttribute('class', 'wf-overlay');
+      svg.setAttribute('class', 'nk-overlay');
       // Ensure the parent is a positioned context.
       if (el.parentElement && getComputedStyle(el.parentElement).position === 'static') {
         el.parentElement.style.position = 'relative';
@@ -609,7 +609,7 @@
   function drawChart(el) {
     const { width: w, height: h } = el.getBoundingClientRect();
     if (w < 2 || h < 2) return;
-    const svg = freshSvg(el, 'wf-bg', w, h);
+    const svg = freshSvg(el, 'nk-bg', w, h);
     const rc = rough.svg(svg);
     const seed = seedFor(el);
 
@@ -727,7 +727,7 @@
 
     const w = pop.offsetWidth;
     const h = pop.offsetHeight;
-    const svg = freshSvg(pop, 'wf-bg', w, h);
+    const svg = freshSvg(pop, 'nk-bg', w, h);
     const rc = rough.svg(svg);
     svg.appendChild(rc.path(bubblePath(w, h), {
       stroke: INK, fill: BG, fillStyle: 'solid',
@@ -739,15 +739,15 @@
   function hideAllPopovers() {
     document.querySelectorAll('[popover]').forEach(pop => {
       pop.style.display = 'none';
-      pop.removeAttribute('data-wf-open');
+      pop.removeAttribute('data-nk-open');
     });
   }
 
   function togglePopover(pop) {
-    const wasOpen = pop.getAttribute('data-wf-open') === 'true';
+    const wasOpen = pop.getAttribute('data-nk-open') === 'true';
     hideAllPopovers();
     if (!wasOpen) {
-      pop.setAttribute('data-wf-open', 'true');
+      pop.setAttribute('data-nk-open', 'true');
       drawPopover(pop);
     }
   }
@@ -799,12 +799,12 @@
 
     // Re-draw any currently-open popover so it follows its trigger on
     // resize/scroll-triggered re-renders.
-    document.querySelectorAll('[popover][data-wf-open="true"]').forEach(drawPopover);
+    document.querySelectorAll('[popover][data-nk-open="true"]').forEach(drawPopover);
 
-    window.__wireframeReady = true;
+    window.__napkinReady = true;
   }
 
-  window.wireframeKit = {
+  window.napkinKit = {
     render,
     openPopover(id) {
       const pop = document.getElementById(id);
@@ -865,7 +865,7 @@
 
   // Reposition open popovers on scroll so they track their triggers.
   window.addEventListener('scroll', () => {
-    document.querySelectorAll('[popover][data-wf-open="true"]').forEach(drawPopover);
+    document.querySelectorAll('[popover][data-nk-open="true"]').forEach(drawPopover);
   }, { passive: true });
 
   const init = () => {

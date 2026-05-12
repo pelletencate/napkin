@@ -1,5 +1,5 @@
 // export-human.ts — bundle proposal.html + the kit into a single self-contained
-// HTML file for human review. Inlines wireframe-kit.css/js so the result works
+// HTML file for human review. Inlines napkin-kit.css/js so the result works
 // offline (modulo the rough.js / Google Fonts CDNs). No annotation overlay.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
@@ -10,9 +10,9 @@ const __dir     = dirname(fileURLToPath(import.meta.url));
 const SKILL_DIR = dirname(__dir);
 const ASSETS    = join(SKILL_DIR, 'assets');
 
-const sessionDir = process.argv[2] ?? './.wireframe-session';
+const sessionDir = process.argv[2] ?? './.napkin-session';
 const outArg     = process.argv[3];
-const outPath    = (outArg && outArg.length > 0) ? outArg : './docs/human/wireframe.html';
+const outPath    = (outArg && outArg.length > 0) ? outArg : './docs/human/napkin.html';
 
 const proposalPath = join(sessionDir, 'proposal.html');
 if (!existsSync(proposalPath)) {
@@ -23,8 +23,8 @@ if (!existsSync(proposalPath)) {
 mkdirSync(dirname(outPath), { recursive: true });
 
 const proposal = readFileSync(proposalPath, 'utf8');
-const kitCss   = readFileSync(join(ASSETS, 'wireframe-kit.css'), 'utf8');
-const kitJs    = readFileSync(join(ASSETS, 'wireframe-kit.js'),  'utf8');
+const kitCss   = readFileSync(join(ASSETS, 'napkin-kit.css'), 'utf8');
+const kitJs    = readFileSync(join(ASSETS, 'napkin-kit.js'),  'utf8');
 
 const inject = [
   `<link href="https://fonts.googleapis.com/css2?family=Gloria+Hallelujah&display=swap" rel="stylesheet">`,

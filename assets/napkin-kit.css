@@ -1,7 +1,7 @@
 /* =============================================================
- * wireframe-kit.css
+ * napkin-kit.css
  *
- * Hand-drawn wireframe styles for semantic HTML.
+ * Hand-drawn napkin-sketch styles for semantic HTML.
  *
  * IMPORTANT: Tailwind Preflight must be disabled. Add this before
  * loading Tailwind:
@@ -12,7 +12,7 @@
  * us at equal specificity on bare element selectors (button, select,
  * summary, etc.). Disabling it lets our CSS stay clean and unprefixed.
  *
- * Pair with wireframe-kit.js and Rough.js.
+ * Pair with napkin-kit.js and Rough.js.
  * ============================================================= */
 
 /* ---------- Minimal reset (the useful bits of preflight we keep) ---------- */
@@ -76,14 +76,14 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 /* Input wrapper (injected at runtime). Must establish an isolated
  * stacking context so our z-index: -1 SVG sits behind the input but
  * not behind the document background. */
-.wf-input {
+.nk-input {
   position: relative;
   display: block;
   isolation: isolate;
 }
 
 /* Select caret via :has() on the input's wrapper (added at runtime). */
-.wf-input:has(> select)::after {
+.nk-input:has(> select)::after {
   content: '▾';
   position: absolute;
   right: 10px;
@@ -312,9 +312,9 @@ details > summary {
   font-weight: 700;
 }
 summary::-webkit-details-marker { display: none; }
-/* Chevron (drawn by JS into a child <svg.wf-chevron>) sits at the left
+/* Chevron (drawn by JS into a child <svg.nk-chevron>) sits at the left
  * of the summary. chevron-right = collapsed, chevron-down = expanded. */
-summary > svg.wf-chevron {
+summary > svg.nk-chevron {
   flex-shrink: 0;
   display: block;
   width: 22px;
@@ -416,7 +416,7 @@ figure.chart > figcaption {
 }
 
 /* ---------- SVG overlays (injected by JS) ---------- */
-svg.wf-bg {
+svg.nk-bg {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -425,7 +425,7 @@ svg.wf-bg {
   pointer-events: none;
   z-index: -1;
 }
-svg.wf-overlay {
+svg.nk-overlay {
   position: absolute;
   display: block;
   pointer-events: none;

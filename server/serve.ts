@@ -1,12 +1,12 @@
 /**
- * Wireframe skill server — daemon + self-fork launcher.
+ * Napkin skill server — daemon + self-fork launcher.
  *
  * Works with:
  *   bun serve.ts start <session-dir>
  *   node --experimental-strip-types serve.ts start <session-dir>
  *
- * First invocation is launcher mode: forks self with WF_DAEMON=1,
- * reads WIREFRAME_READY from child stdout, forwards it, exits 0.
+ * First invocation is launcher mode: forks self with NK_DAEMON=1,
+ * reads NAPKIN_READY from child stdout, forwards it, exits 0.
  * The child (daemon) runs the HTTP/WS server and stays alive.
  */
 
@@ -30,7 +30,7 @@ const IS_BUN = typeof (globalThis as any).Bun !== 'undefined';
 // ─────────────────────────────────────────────────────────────────────────────
 const __file    = fileURLToPath(import.meta.url);
 const __dir     = dirname(__file);
-const SKILL_DIR = dirname(__dir);           // server/ → wireframe/
+const SKILL_DIR = dirname(__dir);           // server/ → napkin/
 const ASSETS    = join(SKILL_DIR, 'assets');
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -187,12 +187,12 @@ function injectOverlay(html: string): string {
   // stays minimal — Tailwind + body, the LLM-readable deliverable.
   const kitFont  = `<link href="https://fonts.googleapis.com/css2?family=Gloria+Hallelujah&display=swap" rel="stylesheet">`;
   const kitRough = `<script src="https://cdn.jsdelivr.net/npm/roughjs@4.6.6/bundled/rough.js"></script>`;
-  const kitCss   = `<link rel="stylesheet" href="/wireframe-kit.css?t=${SESSION_TOKEN}">`;
-  const kitJs    = `<script defer src="/wireframe-kit.js?t=${SESSION_TOKEN}"></script>`;
+  const kitCss   = `<link rel="stylesheet" href="/napkin-kit.css?t=${SESSION_TOKEN}">`;
+  const kitJs    = `<script defer src="/napkin-kit.js?t=${SESSION_TOKEN}"></script>`;
 
   // Annotation overlay (interactive UI). Token-scoped so it can't be loaded
   // out of session.
-  const config       = `<script>window.__WF_CONFIG={port:${SERVER_PORT},token:"${SESSION_TOKEN}"};</script>`;
+  const config       = `<script>window.__NK_CONFIG={port:${SERVER_PORT},token:"${SESSION_TOKEN}"};</script>`;
   const annotateCss  = `<link rel="stylesheet" href="/annotate.css?t=${SESSION_TOKEN}">`;
   const annotateJs   = `<script src="/annotate.js?t=${SESSION_TOKEN}"></script>`;
 
@@ -205,8 +205,8 @@ function injectOverlay(html: string): string {
 // Static assets
 // ─────────────────────────────────────────────────────────────────────────────
 const STATIC: Record<string, string> = {
-  '/wireframe-kit.css': join(ASSETS, 'wireframe-kit.css'),
-  '/wireframe-kit.js':  join(ASSETS, 'wireframe-kit.js'),
+  '/napkin-kit.css': join(ASSETS, 'napkin-kit.css'),
+  '/napkin-kit.js':  join(ASSETS, 'napkin-kit.js'),
   '/annotate.css':      join(ASSETS, 'annotate.css'),
   '/annotate.js':       join(ASSETS, 'annotate.js'),
 };
@@ -234,7 +234,7 @@ async function route(
 ): Promise<RouteResult> {
   const url  = new URL(urlStr, `http://127.0.0.1:${SERVER_PORT}`);
   const path = url.pathname;
-  const t    = url.searchParams.get('t') ?? headers['x-wf-token'] ?? null;
+  const t    = url.searchParams.get('t') ?? headers['x-nk-token'] ?? null;
 
   // ── GET / ──────────────────────────────────────────────────────────────────
   if (method === 'GET' && path === '/') {
@@ -279,7 +279,7 @@ async function route(
 
   // ── POST /annotation ───────────────────────────────────────────────────────
   if (method === 'POST' && path === '/annotation') {
-    if (!checkToken(headers['x-wf-token'] ?? null)) return { status: 401, headers: {}, body: 'Unauthorized' };
+    if (!checkToken(headers['x-nk-token'] ?? null)) return { status: 401, headers: {}, body: 'Unauthorized' };
     try {
       const data = JSON.parse(body);
       const ann: Annotation = { id: randomBytes(8).toString('hex'), ...data };
@@ -292,7 +292,7 @@ async function route(
 
   // ── POST /stop ─────────────────────────────────────────────────────────────
   if (method === 'POST' && path === '/stop') {
-    if (!checkToken(headers['x-wf-token'] ?? null)) return { status: 401, headers: {}, body: 'Unauthorized' };
+    if (!checkToken(headers['x-nk-token'] ?? null)) return { status: 401, headers: {}, body: 'Unauthorized' };
     try { writeFileSync(join(SESSION_DIR, 'done.json'), JSON.stringify({ reason: 'stop-requested', time: new Date().toISOString() })); } catch {}
     endSession();
     setTimeout(() => process.exit(0), 200).unref();
@@ -392,7 +392,7 @@ async function startNodeServer(port: number): Promise<number> {
   server.on('upgrade', (req: IncomingMessage, socket: Socket) => {
     const url = new URL(req.url ?? '/', `http://127.0.0.1`);
     if (url.pathname !== '/ws') { socket.destroy(); return; }
-    const t = url.searchParams.get('t') ?? (req.headers as any)['x-wf-token'];
+    const t = url.searchParams.get('t') ?? (req.headers as any)['x-nk-token'];
     if (!checkToken(t)) { socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n'); socket.destroy(); return; }
     attachNodeWs(socket, req);
   });
@@ -418,7 +418,7 @@ async function startBunServer(port: number): Promise<number> {
 
       // WebSocket upgrade
       if (req.headers.get('upgrade') === 'websocket' && url.pathname === '/ws') {
-        const t = url.searchParams.get('t') ?? req.headers.get('x-wf-token');
+        const t = url.searchParams.get('t') ?? req.headers.get('x-nk-token');
         if (!checkToken(t)) return new Response('Unauthorized', { status: 401 });
         srv.upgrade(req);
         return;
@@ -451,10 +451,10 @@ async function startBunServer(port: number): Promise<number> {
 // ─────────────────────────────────────────────────────────────────────────────
 async function startDaemon(sessionDir: string): Promise<void> {
   SESSION_DIR   = sessionDir;
-  SESSION_TOKEN = process.env.WF_TOKEN ?? '';
-  const port    = Number(process.env.WF_PORT) || 0;
+  SESSION_TOKEN = process.env.NK_TOKEN ?? '';
+  const port    = Number(process.env.NK_PORT) || 0;
   if (!SESSION_TOKEN || !port) {
-    process.stderr.write('[wireframe] daemon: missing WF_TOKEN or WF_PORT in env\n');
+    process.stderr.write('[napkin] daemon: missing NK_TOKEN or NK_PORT in env\n');
     process.exit(1);
   }
 
@@ -491,7 +491,7 @@ function allocateFreePort(): Promise<number> {
 // 2. Writes server.json (the source of truth for stop/connect),
 // 3. Prints the openable URL on stdout via writeSync(fd 1) — bypasses Bun's
 //    Writable buffering so the line is visible before we exit,
-// 4. Spawns a detached copy of ourselves with WF_DAEMON=1 to become the
+// 4. Spawns a detached copy of ourselves with NK_DAEMON=1 to become the
 //    daemon (inherits port + token via env),
 // 5. Exits.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -506,7 +506,7 @@ async function runLauncher(sessionDir: string): Promise<void> {
     JSON.stringify({ port, token }),
   );
 
-  writeSync(1, `WIREFRAME_READY http://127.0.0.1:${port}/?t=${token}\n`);
+  writeSync(1, `NAPKIN_READY http://127.0.0.1:${port}/?t=${token}\n`);
 
   // Daemon stderr → daemon.err in session dir so crashes/diagnostics aren't
   // lost. Truncates each new session.
@@ -516,7 +516,7 @@ async function runLauncher(sessionDir: string): Promise<void> {
   spawn(process.execPath, args, {
     detached: true,
     stdio: ['ignore', 'ignore', errFd],
-    env: { ...process.env, WF_DAEMON: '1', WF_PORT: String(port), WF_TOKEN: token },
+    env: { ...process.env, NK_DAEMON: '1', NK_PORT: String(port), NK_TOKEN: token },
   }).unref();
 
   process.exit(0);
@@ -542,7 +542,7 @@ async function runConnect(sessionDir: string): Promise<never> {
   try {
     info = JSON.parse(readFileSync(join(sessionDir, 'server.json'), 'utf8'));
   } catch (e: any) {
-    process.stderr.write(`wireframe: could not read ${sessionDir}/server.json (${e?.message ?? e})\n`);
+    process.stderr.write(`napkin: could not read ${sessionDir}/server.json (${e?.message ?? e})\n`);
     process.exit(2);
   }
   const { port, token } = info;
@@ -555,10 +555,10 @@ async function runConnect(sessionDir: string): Promise<never> {
     let res: Response;
     try {
       res = await fetch(`http://127.0.0.1:${port}/wait?timeout=25`, {
-        headers: { 'X-WF-Token': token },
+        headers: { 'X-NK-Token': token },
       });
     } catch (e: any) {
-      process.stderr.write(`wireframe: server unreachable (${e?.message ?? e})\n`);
+      process.stderr.write(`napkin: server unreachable (${e?.message ?? e})\n`);
       process.exit(2);
     }
 
@@ -569,10 +569,10 @@ async function runConnect(sessionDir: string): Promise<never> {
     }
     if (res.status === 204) continue;
     if (res.status === 410) {
-      process.stderr.write('wireframe: session ended\n');
+      process.stderr.write('napkin: session ended\n');
       process.exit(1);
     }
-    process.stderr.write(`wireframe: unexpected HTTP ${res.status}\n`);
+    process.stderr.write(`napkin: unexpected HTTP ${res.status}\n`);
     process.exit(2);
   }
 }
@@ -580,23 +580,23 @@ async function runConnect(sessionDir: string): Promise<never> {
 // ─────────────────────────────────────────────────────────────────────────────
 // Entry point
 // ─────────────────────────────────────────────────────────────────────────────
-const [cmd, sessionDir = './.wireframe-session'] = process.argv.slice(2);
+const [cmd, sessionDir = './.napkin-session'] = process.argv.slice(2);
 
 if (cmd === 'serve') {
-  if (process.env.WF_DAEMON === '1') {
+  if (process.env.NK_DAEMON === '1') {
     startDaemon(sessionDir).catch(err => {
-      process.stderr.write(`[wireframe] ${err}\n`);
+      process.stderr.write(`[napkin] ${err}\n`);
       process.exit(1);
     });
   } else {
     runLauncher(sessionDir).catch(err => {
-      process.stderr.write(`[wireframe] ${err}\n`);
+      process.stderr.write(`[napkin] ${err}\n`);
       process.exit(1);
     });
   }
 } else if (cmd === 'connect') {
   runConnect(sessionDir).catch(err => {
-    process.stderr.write(`[wireframe] ${err}\n`);
+    process.stderr.write(`[napkin] ${err}\n`);
     process.exit(2);
   });
 } else {
