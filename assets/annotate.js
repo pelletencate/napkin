@@ -87,11 +87,12 @@
   // Config — injected by server as window.__WF_CONFIG
   // ─────────────────────────────────────────────
   const cfg = window.__WF_CONFIG || {};
-  const TOKEN   = cfg.token || '';
-  const PORT    = cfg.port  || location.port || 80;
-  const HTTP    = `http://127.0.0.1:${PORT}`;
-  const WS_URL  = `ws://127.0.0.1:${PORT}/ws?t=${TOKEN}`;
-  const HOST_ID = 'wf-annotate-root';
+  const TOKEN      = cfg.token || '';
+  const PORT       = cfg.port  || location.port || 80;
+  const HTTP       = `http://127.0.0.1:${PORT}`;
+  const WS_URL     = `ws://127.0.0.1:${PORT}/ws?t=${TOKEN}`;
+  const HOST_ID    = 'wf-annotate-root';
+  const CATCHER_ID = 'wf-click-catcher';
 
   function authHeaders() {
     return { 'X-WF-Token': TOKEN, 'Content-Type': 'application/json' };
@@ -118,7 +119,7 @@
   // ─────────────────────────────────────────────
   function getDeepestAt(x, y) {
     for (const el of document.elementsFromPoint(x, y)) {
-      if (el.id === HOST_ID) continue;
+      if (el.id === HOST_ID || el.id === CATCHER_ID) continue;
       if (el === document.body || el === document.documentElement) continue;
       return el;
     }
@@ -264,12 +265,66 @@
   }
 
   // ─────────────────────────────────────────────
+  // Click catcher — transparent overlay that intercepts clicks during
+  // annotate mode. Disabled buttons don't dispatch click events per the
+  // HTML spec, so we can't rely on a document-level click listener to
+  // detect clicks on them. The catcher sits above page content but below
+  // the toolbar/panel/pin-dots (z-index 2147483643 vs 2147483644+), so
+  // annotation UI stays interactive while page clicks become annotations.
+  // ─────────────────────────────────────────────
+  let catcherEl = null;
+
+  function onCatcherClick(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    // Temporarily disable the catcher so elementsFromPoint sees what's
+    // underneath it.
+    catcherEl.style.pointerEvents = 'none';
+    const target = getDeepestAt(e.clientX, e.clientY);
+    catcherEl.style.pointerEvents = '';
+
+    if (selectedOrphanId !== null) {
+      const orphan = orphanedPins.find(o => o.id === selectedOrphanId);
+      if (orphan) {
+        orphan.selector = getCssSelector(target);
+        addPendingPin(orphan.id, orphan.comment, orphan.selector, target);
+        orphanedPins = orphanedPins.filter(o => o.id !== selectedOrphanId);
+        selectedOrphanId = null;
+        renderOrphanChips();
+        return;
+      }
+    }
+
+    startSelection(target);
+  }
+
+  // ─────────────────────────────────────────────
   // Annotate mode
   // ─────────────────────────────────────────────
   function setAnnotateMode(on) {
     annotateMode = on;
     document.body.style.cursor = on ? 'crosshair' : '';
-    if (!on) clearSelection();
+    if (on) {
+      if (!catcherEl) {
+        catcherEl = document.createElement('div');
+        catcherEl.id = CATCHER_ID;
+        Object.assign(catcherEl.style, {
+          position: 'fixed',
+          inset:    '0',
+          zIndex:   '2147483643',
+          cursor:   'crosshair',
+          background: 'transparent',
+        });
+        catcherEl.addEventListener('click', onCatcherClick);
+        document.body.appendChild(catcherEl);
+      }
+    } else {
+      if (catcherEl) {
+        catcherEl.remove();
+        catcherEl = null;
+      }
+      clearSelection();
+    }
   }
 
   // ─────────────────────────────────────────────
@@ -417,14 +472,18 @@
       .replace(/<script>\s*window\.__WF_CONFIG\s*=[^<]*<\/script>\s*/gi, '')
       .replace(/<link[^>]*annotate\.css[^>]*>\s*/gi, '');
 
-    // Detach overlay host before morphing so it isn't removed
-    const host = document.getElementById(HOST_ID);
-    if (host) host.remove();
+    // Detach overlay host and click catcher before morphing so the morpher
+    // doesn't wipe them out as it replaces body children.
+    const host    = document.getElementById(HOST_ID);
+    const catcher = document.getElementById(CATCHER_ID);
+    if (host)    host.remove();
+    if (catcher) catcher.remove();
 
     clearSelection();
     Morph.morph(document.body, cleaned);
 
-    if (host) document.body.appendChild(host);
+    if (host)    document.body.appendChild(host);
+    if (catcher) document.body.appendChild(catcher);
     if (window.wireframeKit?.render) window.wireframeKit.render();
 
     resolvePinsAfterMorph();
@@ -466,35 +525,8 @@
   }
 
   // ─────────────────────────────────────────────
-  // Click / keyboard handlers
+  // Keyboard handler
   // ─────────────────────────────────────────────
-  document.addEventListener('click', e => {
-    if (!annotateMode) return;
-
-    // Check composed path to reliably detect clicks inside shadow DOM
-    if (e.composedPath().some(n => n.id === HOST_ID)) return;
-
-    e.preventDefault();
-    e.stopPropagation();
-
-    const target = getDeepestAt(e.clientX, e.clientY);
-
-    // If an orphan is selected, reconnect it to this element
-    if (selectedOrphanId !== null) {
-      const orphan = orphanedPins.find(o => o.id === selectedOrphanId);
-      if (orphan) {
-        orphan.selector = getCssSelector(target);
-        addPendingPin(orphan.id, orphan.comment, orphan.selector, target);
-        orphanedPins = orphanedPins.filter(o => o.id !== selectedOrphanId);
-        selectedOrphanId = null;
-        renderOrphanChips();
-        return;
-      }
-    }
-
-    startSelection(target);
-  }, true);
-
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') clearSelection();
   });
