@@ -1,14 +1,27 @@
-// export-human.ts — bundle proposal.html + the kit into a single self-contained
-// HTML file for human review. Inlines napkin-kit.css/js so the result works
-// offline (modulo the rough.js / Google Fonts CDNs). No annotation overlay.
+// export-human.ts — bundle proposal.html + the kit into a self-contained HTML
+// file for human review. References napkin-kit.css/js from jsDelivr (pinned to
+// the local skill's current git SHA) so the artifact stays small and survives
+// kit edits without re-exporting. No annotation overlay.
 
+import { execSync }                       from 'child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
-import { join, dirname }                                      from 'path';
-import { fileURLToPath }                                      from 'url';
+import { join, dirname }                  from 'path';
+import { fileURLToPath }                  from 'url';
 
 const __dir     = dirname(fileURLToPath(import.meta.url));
 const SKILL_DIR = dirname(__dir);
-const ASSETS    = join(SKILL_DIR, 'assets');
+
+const KIT_REPO  = 'pelletencate/napkin';
+const KIT_REF   = resolveKitRef();
+
+function resolveKitRef(): string {
+  try {
+    return execSync('git rev-parse HEAD', { cwd: SKILL_DIR, stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString().trim() || 'main';
+  } catch {
+    return 'main';
+  }
+}
 
 const sessionDir = process.argv[2] ?? './.napkin-session';
 const outArg     = process.argv[3];
@@ -23,14 +36,13 @@ if (!existsSync(proposalPath)) {
 mkdirSync(dirname(outPath), { recursive: true });
 
 const proposal = readFileSync(proposalPath, 'utf8');
-const kitCss   = readFileSync(join(ASSETS, 'napkin-kit.css'), 'utf8');
-const kitJs    = readFileSync(join(ASSETS, 'napkin-kit.js'),  'utf8');
+const kitBase  = `https://cdn.jsdelivr.net/gh/${KIT_REPO}@${KIT_REF}/assets`;
 
 const inject = [
   `<link href="https://fonts.googleapis.com/css2?family=Gloria+Hallelujah&display=swap" rel="stylesheet">`,
   `<script src="https://cdn.jsdelivr.net/npm/roughjs@4.6.6/bundled/rough.js"></script>`,
-  `<style>\n${kitCss}\n</style>`,
-  `<script>\n${kitJs}\n</script>`,
+  `<link rel="stylesheet" href="${kitBase}/napkin-kit.css">`,
+  `<script src="${kitBase}/napkin-kit.js"></script>`,
 ].join('\n');
 
 if (!/<\/head>/i.test(proposal)) {
@@ -40,4 +52,4 @@ if (!/<\/head>/i.test(proposal)) {
 
 const output = proposal.replace(/<\/head>/i, `${inject}\n</head>`);
 writeFileSync(outPath, output);
-console.log(`Wrote ${outPath}`);
+console.log(`Wrote ${outPath} (kit @ ${KIT_REF.slice(0, 12)})`);
