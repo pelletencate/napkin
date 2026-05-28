@@ -27,6 +27,9 @@ SESSION_DIR="${2:-./.napkin-session}"
 case "$CMD" in
   serve)
     mkdir -p "$SESSION_DIR"
+    # Self-ignore the scratch dir so it can never be accidentally committed,
+    # in any project, regardless of global git config.
+    [ -f "$SESSION_DIR/.gitignore" ] || printf '*\n' > "$SESSION_DIR/.gitignore"
     # Kit assets are served from the skill's assets/ dir at /napkin-kit.{css,js}
     # — no need to stage them in the session dir.
     exec $RUNTIME $RUN_ARGS "$SKILL_DIR/server/serve.ts" serve "$SESSION_DIR"

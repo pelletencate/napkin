@@ -23,7 +23,9 @@ If neither exists: *"This skill needs `bun` (preferred) or `node`. Install bun w
 
 ## Step 2 — Generate `proposal.html`
 
-Write the napkin to `./.napkin-session/proposal.html` using the skeleton and component vocabulary below. Do not deviate from the skeleton. Do not show raw HTML to the user — it is meant for the browser.
+First, make the scratch dir uncommittable so it can never leak into the host project's git history: write `./.napkin-session/.gitignore` containing a single line `*`. (Creating this file also creates the dir.)
+
+Then write the napkin to `./.napkin-session/proposal.html` using the skeleton and component vocabulary below. Do not deviate from the skeleton. Do not show raw HTML to the user — it is meant for the browser.
 
 ### File skeleton
 
@@ -149,6 +151,10 @@ NAPKIN_READY http://127.0.0.1:PORT token=TOKEN
 
 Parse `PORT` and `TOKEN` from that line. Store them — all subsequent API calls use them.
 
+### 3b — Open the browser and begin the annotation loop
+
+Open the browser with the URL from the `NAPKIN_READY` line (`http://127.0.0.1:PORT/?t=TOKEN`). Then **immediately** enter the annotation loop in Step 4 — do not pause, ask questions, or do any other work between opening the browser and starting the loop. The user is already looking at your napkin; they need you to be listening for annotations.
+
 ## Step 4 — Annotation loop
 
 Each iteration of this loop is one round-trip: **wait → revise → signal done**. Repeat until the session ends. The session ends when the user closes the browser tab, clicks Stop, or any HTTP error makes the server unreachable — concretely, when the wait step returns 410, an unexpected status, or curl fails entirely.
@@ -192,13 +198,9 @@ If you need more context, re-read `proposal.html` from disk. The selector + text
 
 Edit `proposal.html` to apply the requested change.
 
-### 4c — Signal done
+### 4c — Loop back
 
-```bash
-curl -s -X POST -H "X-NK-Token: $TOKEN" "http://127.0.0.1:$PORT/revised"
-```
-
-The server then morphs the live page in place. Loop back to **4a** for the next annotation.
+Edits to `proposal.html` are automatically broadcast to the browser when the next `/wait` poll (step **4a**) begins. No separate signal is needed — loop back to **4a** for the next annotation.
 
 ### Error handling inside the loop
 
@@ -208,10 +210,12 @@ If any HTTP call returns a non-2xx status, surface a one-line diagnostic and con
 
 When the loop ends, `proposal.html` on disk is the **LLM-readable deliverable** — minimal HTML, Tailwind only, no kit. That alone is enough for downstream agents.
 
+**`proposal.html` is the absolute source of truth for UX.** The layout, component choices, sizing, hierarchy, and interaction patterns it defines are the definitive specification. Any agent building from this napkin must not deviate from these unless the user explicitly instructs otherwise. Never substitute, re-order, or reinterpret the napkin's structure when translating it into production code.
+
 Ask the user which human-readable artifact(s) they want alongside it. PNGs and the standalone HTML are independent — the user can pick neither, either, or both. Use a multi-select question UI if one is available; otherwise ask in plain prose.
 
 - **PNG screenshots** — full-page captures at multiple viewport widths
-- **Standalone HTML with the kit** — single self-contained file that renders the same hand-drawn look in any browser, minus the annotation UI
+- **Standalone HTML with the kit** — single file that renders the same hand-drawn look in any browser (kit CSS/JS load from jsDelivr; needs network), minus the annotation UI
 
 If the user picks neither, the LLM HTML (`proposal.html`) is the only artifact. That's the default.
 
@@ -245,7 +249,7 @@ Whether to commit `docs/human/` to git is the user's call — do not touch `.git
 Generate the chosen artifact(s) **before stopping the daemon** (PNGs need the live server). Both go to `./docs/human/` (relative to the user's project root). If the user picked both, run them sequentially — order doesn't matter.
 
 - **PNGs:** use whichever HTML-to-image skill the user has available (e.g. a screenshot skill, a Playwright-based MCP tool, headless Chrome). Point it at the **live daemon URL** (`http://127.0.0.1:$PORT/?t=$TOKEN`), not `proposal.html` on disk — the daemon-rendered version has the kit injected; the disk version doesn't. Write output to `./docs/human/napkin.{sm,md,lg}.png` (small/medium/large viewport widths if the tool supports it; otherwise a single `./docs/human/napkin.png`). If no such skill is available, tell the user and skip the PNG artifact — the bundled HTML still covers the human-review need.
-- **Bundled HTML:** run the export tool. It inlines the kit CSS/JS into a copy of proposal.html and writes to `./docs/human/napkin.html` by default (override with a third arg).
+- **Bundled HTML:** run the export tool. It injects `<link>`/`<script>` tags pointing at the kit on jsDelivr (pinned to the skill's local git SHA, or `main` if the skill isn't a git checkout) and writes to `./docs/human/napkin.html` by default (override with a third arg).
 
 ```bash
 "$SKILL_DIR/bin/napkin" export-human "$SESSION_DIR"
@@ -263,13 +267,22 @@ Then stop the server (uses the same `$SKILL_DIR` and `$SESSION_DIR` from Step 3)
 
 The server also auto-shuts down 15 seconds after the user closes the browser tab.
 
+### Handoff to downstream agents
+
+Copy `proposal.html` to a suitable location in the user's project where spec artifacts live (e.g. `./specs/`, `./docs/`, or wherever the project convention places design specs). Use a descriptive filename so multiple napkins in the same project don't collide — derive it from the feature or page name (e.g. `napkin-signup.html`, `napkin-settings.html`). If no convention exists, place it at `./napkin-<feature>.html` in the project root and ask the user to confirm or relocate it.
+
+When writing any plan, spec, or handoff for downstream agents:
+- **Reference `proposal.html`** by its project path — not `.napkin-session/proposal.html`.
+- **Never reference human artifacts.** Do not mention `docs/human/`, PNG screenshots, or the kit-decorated human HTML in any plan, spec, or agent instruction. These are human-review-only artifacts and will anchor downstream agents on decoration rather than structure.
+
 ## Verification before reporting complete
 
 - `proposal.html` written to `.napkin-session/` using the Step 2 skeleton
 - Server started; `PORT` + `TOKEN` parsed from the `NAPKIN_READY` line
 - Browser opened and napkin rendered visually
-- Every user annotation handled — each revised, then `POST /revised` sent
+- Every user annotation handled — each revised, then looped back for the next poll
 - Server stopped cleanly
+- `proposal.html` copied to an appropriate project location and referenced in the plan
 
 ## File layout
 
